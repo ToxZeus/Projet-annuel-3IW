@@ -9,6 +9,15 @@ declare(strict_types=1);
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body>
+    <header class="topbar">
+        <a class="brand" href="/?page=home">Budgie</a>
+        <nav class="topbar-nav">
+            <a href="/?page=home">Accueil</a>
+            <a href="/?page=dashboard">Espace perso</a>
+            <a href="/?page=login">Connexion</a>
+            <a href="/?page=logout">Déconnexion</a>
+        </nav>
+    </header>
     <main class="shell">
         <?= $content ?>
     </main>
