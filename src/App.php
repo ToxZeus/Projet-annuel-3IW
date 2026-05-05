@@ -3,6 +3,16 @@ declare(strict_types=1);
 
 final class App
 {
+    private Database $db;
+    private AccountService $accountService;
+
+    public function __construct()
+    {
+        $this->db = new Database(BASE_PATH . '/data/budgie.db');
+        $this->db->init();
+        $this->accountService = new AccountService($this->db);
+    }
+
     public function run(): void
     {
         $page = $_GET['page'] ?? 'home';
@@ -15,6 +25,22 @@ final class App
         if ($page === 'logout') {
             $this->handleLogout();
             return;
+        }
+
+        if ($page === 'accounts' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleAccountCreate();
+            return;
+        }
+
+        if ($page === 'account' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleAccountUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleAccountDelete((int) $_GET['id']);
+                return;
+            }
         }
 
         $routes = [
@@ -30,6 +56,18 @@ final class App
                 'title' => 'Budgie | Tableau de bord',
                 'template' => 'pages/dashboard.php',
             ],
+            'accounts' => [
+                'title' => 'Budgie | Comptes',
+                'template' => 'pages/accounts/list.php',
+            ],
+            'account' => [
+                'title' => 'Budgie | Compte',
+                'template' => 'pages/accounts/detail.php',
+            ],
+            'account-create' => [
+                'title' => 'Budgie | Nouveau compte',
+                'template' => 'pages/accounts/create.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -39,17 +77,35 @@ final class App
 
         $route = $routes[$page];
 
-        if ($page === 'dashboard' && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
 
-        $content = $this->render($route['template'], [
+        if ($page === 'account' && !isset($_GET['id'])) {
+            http_response_code(400);
+            return;
+        }
+
+        $data = [
             'page' => $page,
             'user' => $this->currentUser(),
             'error' => $_SESSION['flash_error'] ?? null,
             'success' => $_SESSION['flash_success'] ?? null,
-        ]);
+        ];
+
+        if ($page === 'accounts') {
+            $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
+        } elseif ($page === 'account' && isset($_GET['id'])) {
+            $account = $this->accountService->findById((int) $_GET['id']);
+            if (!$account) {
+                http_response_code(404);
+                return;
+            }
+            $data['account'] = $account;
+        }
+
+        $content = $this->render($route['template'], $data);
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
 
@@ -117,6 +173,89 @@ final class App
     private function currentUser(): ?array
     {
         return $_SESSION['user'] ?? null;
+    }
+
+    private function handleAccountCreate(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $interestRate = (float) ($_POST['interest_rate'] ?? 0);
+        $taxRate = (float) ($_POST['tax_rate'] ?? 0);
+
+        if (empty($shortName) || empty($description)) {
+            $_SESSION['flash_error'] = 'Tous les champs obligatoires doivent être remplis.';
+            header('Location: /?page=accounts');
+            exit;
+        }
+
+        try {
+            $this->accountService->create(
+                $this->currentUser()['email'],
+                $shortName,
+                $description,
+                $interestRate,
+                $taxRate
+            );
+            $_SESSION['flash_success'] = 'Compte créé avec succès.';
+        } catch (Exception $e) {
+            $_SESSION['flash_error'] = 'Erreur lors de la création du compte.';
+        }
+
+        header('Location: /?page=accounts');
+        exit;
+    }
+
+    private function handleAccountUpdate(int $id): void
+    {
+        $account = $this->accountService->findById($id);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $interestRate = (float) ($_POST['interest_rate'] ?? 0);
+        $taxRate = (float) ($_POST['tax_rate'] ?? 0);
+
+        if (empty($shortName) || empty($description)) {
+            $_SESSION['flash_error'] = 'Tous les champs obligatoires doivent être remplis.';
+            header('Location: /?page=account&id=' . $id);
+            exit;
+        }
+
+        if ($this->accountService->update($id, $shortName, $description, $interestRate, $taxRate)) {
+            $_SESSION['flash_success'] = 'Compte mis à jour avec succès.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la mise à jour du compte.';
+        }
+
+        header('Location: /?page=account&id=' . $id);
+        exit;
+    }
+
+    private function handleAccountDelete(int $id): void
+    {
+        $account = $this->accountService->findById($id);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        if ($this->accountService->delete($id)) {
+            $_SESSION['flash_success'] = 'Compte supprimé avec succès.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la suppression du compte.';
+        }
+
+        header('Location: /?page=accounts');
+        exit;
     }
 
     private function render(string $template, array $data = []): string
