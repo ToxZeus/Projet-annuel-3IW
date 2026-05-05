@@ -5,12 +5,16 @@ final class App
 {
     private Database $db;
     private AccountService $accountService;
+    private ExpenseService $expenseService;
+    private IncomeService $incomeService;
 
     public function __construct()
     {
         $this->db = new Database(BASE_PATH . '/data/budgie.db');
         $this->db->init();
         $this->accountService = new AccountService($this->db);
+        $this->expenseService = new ExpenseService($this->db);
+        $this->incomeService = new IncomeService($this->db);
     }
 
     public function run(): void
@@ -43,6 +47,38 @@ final class App
             }
         }
 
+        if ($page === 'expenses' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleExpenseCreate();
+            return;
+        }
+
+        if ($page === 'expense' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleExpenseUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleExpenseDelete((int) $_GET['id']);
+                return;
+            }
+        }
+
+        if ($page === 'incomes' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleIncomeCreate();
+            return;
+        }
+
+        if ($page === 'income' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleIncomeUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleIncomeDelete((int) $_GET['id']);
+                return;
+            }
+        }
+
         $routes = [
             'home' => [
                 'title' => 'Budgie | Ton partenaire financier personnel',
@@ -68,6 +104,30 @@ final class App
                 'title' => 'Budgie | Nouveau compte',
                 'template' => 'pages/accounts/create.php',
             ],
+            'expenses' => [
+                'title' => 'Budgie | Dépenses',
+                'template' => 'pages/expenses/list.php',
+            ],
+            'expense' => [
+                'title' => 'Budgie | Dépense',
+                'template' => 'pages/expenses/detail.php',
+            ],
+            'expense-create' => [
+                'title' => 'Budgie | Nouvelle dépense',
+                'template' => 'pages/expenses/create.php',
+            ],
+            'incomes' => [
+                'title' => 'Budgie | Revenus',
+                'template' => 'pages/incomes/list.php',
+            ],
+            'income' => [
+                'title' => 'Budgie | Revenu',
+                'template' => 'pages/incomes/detail.php',
+            ],
+            'income-create' => [
+                'title' => 'Budgie | Nouveau revenu',
+                'template' => 'pages/incomes/create.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -77,12 +137,22 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
 
         if ($page === 'account' && !isset($_GET['id'])) {
+            http_response_code(400);
+            return;
+        }
+
+        if ($page === 'expense' && !isset($_GET['id'])) {
+            http_response_code(400);
+            return;
+        }
+
+        if ($page === 'income' && !isset($_GET['id'])) {
             http_response_code(400);
             return;
         }
@@ -98,6 +168,52 @@ final class App
             $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
         } elseif ($page === 'account' && isset($_GET['id'])) {
             $account = $this->accountService->findById((int) $_GET['id']);
+            if (!$account) {
+                http_response_code(404);
+                return;
+            }
+            $data['account'] = $account;
+            $data['expenses'] = $this->expenseService->findByAccount($account['id']);
+            $data['incomes'] = $this->incomeService->findByAccount($account['id']);
+        } elseif ($page === 'expenses') {
+            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+            $allExpenses = [];
+            foreach ($accounts as $account) {
+                $allExpenses = array_merge($allExpenses, $this->expenseService->findByAccount($account['id']));
+            }
+            $data['expenses'] = $allExpenses;
+        } elseif ($page === 'expense' && isset($_GET['id'])) {
+            $expense = $this->expenseService->findById((int) $_GET['id']);
+            if (!$expense) {
+                http_response_code(404);
+                return;
+            }
+            $data['expense'] = $expense;
+            $data['account'] = $this->accountService->findById($expense['account_id']);
+        } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
+            $account = $this->accountService->findById((int) $_GET['account_id']);
+            if (!$account) {
+                http_response_code(404);
+                return;
+            }
+            $data['account'] = $account;
+        } elseif ($page === 'incomes') {
+            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+            $allIncomes = [];
+            foreach ($accounts as $account) {
+                $allIncomes = array_merge($allIncomes, $this->incomeService->findByAccount($account['id']));
+            }
+            $data['incomes'] = $allIncomes;
+        } elseif ($page === 'income' && isset($_GET['id'])) {
+            $income = $this->incomeService->findById((int) $_GET['id']);
+            if (!$income) {
+                http_response_code(404);
+                return;
+            }
+            $data['income'] = $income;
+            $data['account'] = $this->accountService->findById($income['account_id']);
+        } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
+            $account = $this->accountService->findById((int) $_GET['account_id']);
             if (!$account) {
                 http_response_code(404);
                 return;
@@ -255,6 +371,212 @@ final class App
         }
 
         header('Location: /?page=accounts');
+        exit;
+    }
+
+    private function handleExpenseCreate(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $accountId = (int) ($_POST['account_id'] ?? 0);
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount = (float) ($_POST['amount'] ?? 0);
+        $frequency = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        $account = $this->accountService->findById($accountId);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            $_SESSION['flash_error'] = 'Compte introuvable ou accès non autorisé.';
+            header('Location: /?page=accounts');
+            exit;
+        }
+
+        if (empty($shortName) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        try {
+            $this->expenseService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            $_SESSION['flash_success'] = 'Dépense créée avec succès.';
+        } catch (Exception $e) {
+            $_SESSION['flash_error'] = 'Erreur lors de la création de la dépense.';
+        }
+
+        header('Location: /?page=account&id=' . $accountId);
+        exit;
+    }
+
+    private function handleExpenseUpdate(int $id): void
+    {
+        $expense = $this->expenseService->findById($id);
+        if (!$expense) {
+            http_response_code(404);
+            exit;
+        }
+
+        $account = $this->accountService->findById((int) $expense['account_id']);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount = (float) ($_POST['amount'] ?? 0);
+        $frequency = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($shortName) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=expense&id=' . $id);
+            exit;
+        }
+
+        if ($this->expenseService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
+            $_SESSION['flash_success'] = 'Dépense mise à jour.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la mise à jour.';
+        }
+
+        header('Location: /?page=expense&id=' . $id);
+        exit;
+    }
+
+    private function handleExpenseDelete(int $id): void
+    {
+        $expense = $this->expenseService->findById($id);
+        if (!$expense) {
+            http_response_code(404);
+            exit;
+        }
+
+        $account = $this->accountService->findById((int) $expense['account_id']);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        if ($this->expenseService->delete($id)) {
+            $_SESSION['flash_success'] = 'Dépense supprimée.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la suppression.';
+        }
+
+        header('Location: /?page=account&id=' . $account['id']);
+        exit;
+    }
+
+    private function handleIncomeCreate(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $accountId = (int) ($_POST['account_id'] ?? 0);
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount = (float) ($_POST['amount'] ?? 0);
+        $frequency = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        $account = $this->accountService->findById($accountId);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            $_SESSION['flash_error'] = 'Compte introuvable ou accès non autorisé.';
+            header('Location: /?page=accounts');
+            exit;
+        }
+
+        if (empty($shortName) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        try {
+            $this->incomeService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            $_SESSION['flash_success'] = 'Revenu créé avec succès.';
+        } catch (Exception $e) {
+            $_SESSION['flash_error'] = 'Erreur lors de la création du revenu.';
+        }
+
+        header('Location: /?page=account&id=' . $accountId);
+        exit;
+    }
+
+    private function handleIncomeUpdate(int $id): void
+    {
+        $income = $this->incomeService->findById($id);
+        if (!$income) {
+            http_response_code(404);
+            exit;
+        }
+
+        $account = $this->accountService->findById((int) $income['account_id']);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        $shortName = trim((string) ($_POST['short_name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount = (float) ($_POST['amount'] ?? 0);
+        $frequency = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($shortName) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=income&id=' . $id);
+            exit;
+        }
+
+        if ($this->incomeService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
+            $_SESSION['flash_success'] = 'Revenu mis à jour.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la mise à jour.';
+        }
+
+        header('Location: /?page=income&id=' . $id);
+        exit;
+    }
+
+    private function handleIncomeDelete(int $id): void
+    {
+        $income = $this->incomeService->findById($id);
+        if (!$income) {
+            http_response_code(404);
+            exit;
+        }
+
+        $account = $this->accountService->findById((int) $income['account_id']);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        if ($this->incomeService->delete($id)) {
+            $_SESSION['flash_success'] = 'Revenu supprimé.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la suppression.';
+        }
+
+        header('Location: /?page=account&id=' . $account['id']);
         exit;
     }
 
