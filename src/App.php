@@ -39,6 +39,31 @@ final class App
             return;
         }
 
+        if ($page === 'activate') {
+            if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                $this->handleActivateGet();
+            }
+            return;
+        }
+
+        if ($page === 'forgot-password') {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $this->handleForgotPasswordPost();
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Afficher le formulaire
+            }
+            return;
+        }
+
+        if ($page === 'reset-password') {
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                $this->handleResetPasswordPost();
+            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+                // Afficher le formulaire si token valide
+            }
+            return;
+        }
+
         if ($page === 'accounts' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleAccountCreate();
             return;
@@ -99,6 +124,18 @@ final class App
             'login' => [
                 'title' => 'Budgie | Connexion',
                 'template' => 'pages/login.php',
+            ],
+            'activate' => [
+                'title' => 'Budgie | Activation du compte',
+                'template' => 'pages/activate.php',
+            ],
+            'forgot-password' => [
+                'title' => 'Budgie | Mot de passe oublié',
+                'template' => 'pages/forgot-password.php',
+            ],
+            'reset-password' => [
+                'title' => 'Budgie | Réinitialiser le mot de passe',
+                'template' => 'pages/reset-password.php',
             ],
             'dashboard' => [
                 'title' => 'Budgie | Tableau de bord',
@@ -276,19 +313,26 @@ final class App
 
     private function handleSignup(): void
     {
-        $email = trim((string) ($_POST['email'] ?? ''));
-        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
+        $fullName = ValidationHelper::cleanName($_POST['full_name'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
 
+        // Validation
         if (empty($email) || empty($fullName) || empty($password)) {
             $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
             header('Location: /?page=signup');
             exit;
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (!ValidationHelper::validateEmail($email)) {
             $_SESSION['flash_error'] = 'Email invalide.';
+            header('Location: /?page=signup');
+            exit;
+        }
+
+        if (!ValidationHelper::validatePassword($password)) {
+            $_SESSION['flash_error'] = 'Le mot de passe doit avoir au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre et 1 caractère spécial.';
             header('Location: /?page=signup');
             exit;
         }
@@ -306,11 +350,21 @@ final class App
         }
 
         try {
-            $this->userService->create($email, $fullName, $password);
-            $_SESSION['flash_success'] = 'Inscription réussie. Vous pouvez maintenant vous connecter.';
+            // Générer un token d'activation
+            $verificationToken = bin2hex(random_bytes(32));
+            $tokenExpiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
+
+            // Créer l'utilisateur avec le token
+            $this->userService->create($email, $fullName, $password, $verificationToken, $tokenExpiry);
+
+            // Envoyer l'email d'activation
+            EmailHelper::sendActivation($email, explode(' ', $fullName)[0], $verificationToken);
+
+            $_SESSION['flash_success'] = 'Inscription réussie. Veuillez confirmer votre adresse email en cliquant sur le lien reçu.';
             header('Location: /?page=login');
             exit;
         } catch (Exception $e) {
+            error_log('Signup error: ' . $e->getMessage());
             $_SESSION['flash_error'] = 'Erreur lors de l\'inscription.';
             header('Location: /?page=signup');
             exit;
@@ -346,11 +400,99 @@ final class App
         exit;
     }
 
+    private function handleActivateGet(): void
+    {
+        $token = trim((string) ($_GET['token'] ?? ''));
+
+        if (empty($token)) {
+            $_SESSION['flash_error'] = 'Token invalide.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        if ($this->userService->activateAccount($token)) {
+            $_SESSION['flash_success'] = 'Votre compte a été activé. Vous pouvez maintenant vous connecter.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $_SESSION['flash_error'] = 'Le lien d\'activation a expiré ou est invalide.';
+        header('Location: /?page=login');
+        exit;
+    }
+
+    private function handleForgotPasswordPost(): void
+    {
+        $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
+
+        if (empty($email)) {
+            $_SESSION['flash_error'] = 'Veuillez entrer votre adresse email.';
+            header('Location: /?page=forgot-password');
+            exit;
+        }
+
+        $result = $this->userService->generateResetToken($email);
+        if ($result) {
+            $user = $this->userService->findByEmail($email);
+            EmailHelper::sendPasswordReset($email, explode(' ', $user['full_name'])[0], $result['reset_token']);
+        }
+
+        // Toujours afficher un message de succès pour des raisons de sécurité
+        $_SESSION['flash_success'] = 'Si cette adresse email existe, un lien de réinitialisation a été envoyé.';
+        header('Location: /?page=login');
+        exit;
+    }
+
+    private function handleResetPasswordPost(): void
+    {
+        $token = trim((string) ($_POST['token'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+
+        if (empty($token) || empty($password) || empty($passwordConfirm)) {
+            $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
+            header('Location: /?page=reset-password&token=' . urlencode($token));
+            exit;
+        }
+
+        if (!ValidationHelper::validatePassword($password)) {
+            $_SESSION['flash_error'] = 'Le mot de passe doit avoir au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre et 1 caractère spécial.';
+            header('Location: /?page=reset-password&token=' . urlencode($token));
+            exit;
+        }
+
+        if ($password !== $passwordConfirm) {
+            $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
+            header('Location: /?page=reset-password&token=' . urlencode($token));
+            exit;
+        }
+
+        if ($this->userService->resetPassword($token, $password)) {
+            $_SESSION['flash_success'] = 'Votre mot de passe a été réinitialisé. Vous pouvez maintenant vous connecter.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $_SESSION['flash_error'] = 'Le lien de réinitialisation a expiré ou est invalide.';
+        header('Location: /?page=forgot-password');
+        exit;
+    }
+
     private function seedDemoUser(): void
     {
         if (!$this->userService->existsByEmail('demo@budgie.local')) {
             try {
+                // Créer un utilisateur démo activé directement (sans token)
                 $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
+                
+                // Activer le compte démo en supprimant le token d'activation
+                $user = $this->userService->findByEmail('demo@budgie.local');
+                if ($user && !$user['is_active']) {
+                    $this->db->exec(
+                        'UPDATE users SET is_active = true, verification_token = NULL, token_expiry = NULL WHERE id = ?',
+                        [$user['id']]
+                    );
+                }
             } catch (Exception $e) {
                 // Silently fail if demo user already exists
             }

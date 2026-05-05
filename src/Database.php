@@ -35,7 +35,13 @@ final class Database
                 email TEXT NOT NULL UNIQUE,
                 full_name TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                is_active BOOLEAN DEFAULT FALSE,
+                verification_token TEXT,
+                token_expiry TEXT,
+                reset_token TEXT,
+                reset_token_expiry TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT
             )
         ');
 
