@@ -30,6 +30,16 @@ final class Database
         $pdo = $this->connect();
 
         $pdo->exec('
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                full_name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        ');
+
+        $pdo->exec('
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_email TEXT NOT NULL,
@@ -39,7 +49,8 @@ final class Database
                 interest_rate REAL NOT NULL DEFAULT 0,
                 tax_rate REAL NOT NULL DEFAULT 0,
                 balance REAL NOT NULL DEFAULT 0,
-                UNIQUE(user_email, short_name)
+                UNIQUE(user_email, short_name),
+                FOREIGN KEY (user_email) REFERENCES users(email)
             )
         ');
 

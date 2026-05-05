@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./data:/var/www/html/data
+    environment:
+      - APACHE_LOG_DIR=/var/log/apache2
+      - APACHE_RUN_GROUP=www-data
+      - APACHE_RUN_USER=www-data
+    container_name: budgie-app

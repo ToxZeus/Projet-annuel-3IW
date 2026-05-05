@@ -4,6 +4,7 @@ declare(strict_types=1);
 final class App
 {
     private Database $db;
+    private UserService $userService;
     private AccountService $accountService;
     private ExpenseService $expenseService;
     private IncomeService $incomeService;
@@ -12,14 +13,21 @@ final class App
     {
         $this->db = new Database(BASE_PATH . '/data/budgie.db');
         $this->db->init();
+        $this->userService = new UserService($this->db);
         $this->accountService = new AccountService($this->db);
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
+        $this->seedDemoUser();
     }
 
     public function run(): void
     {
         $page = $_GET['page'] ?? 'home';
+
+        if ($page === 'signup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleSignup();
+            return;
+        }
 
         if ($page === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleLogin();
@@ -83,6 +91,10 @@ final class App
             'home' => [
                 'title' => 'Budgie | Ton partenaire financier personnel',
                 'template' => 'pages/home.php',
+            ],
+            'signup' => [
+                'title' => 'Budgie | Inscription',
+                'template' => 'pages/signup.php',
             ],
             'login' => [
                 'title' => 'Budgie | Connexion',
@@ -262,12 +274,60 @@ final class App
         echo $this->renderLayout($route['title'], $content);
     }
 
+    private function handleSignup(): void
+    {
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $fullName = trim((string) ($_POST['full_name'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+
+        if (empty($email) || empty($fullName) || empty($password)) {
+            $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
+            header('Location: /?page=signup');
+            exit;
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash_error'] = 'Email invalide.';
+            header('Location: /?page=signup');
+            exit;
+        }
+
+        if ($password !== $passwordConfirm) {
+            $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
+            header('Location: /?page=signup');
+            exit;
+        }
+
+        if ($this->userService->existsByEmail($email)) {
+            $_SESSION['flash_error'] = 'Cet email est déjà utilisé.';
+            header('Location: /?page=signup');
+            exit;
+        }
+
+        try {
+            $this->userService->create($email, $fullName, $password);
+            $_SESSION['flash_success'] = 'Inscription réussie. Vous pouvez maintenant vous connecter.';
+            header('Location: /?page=login');
+            exit;
+        } catch (Exception $e) {
+            $_SESSION['flash_error'] = 'Erreur lors de l\'inscription.';
+            header('Location: /?page=signup');
+            exit;
+        }
+    }
+
     private function handleLogin(): void
     {
         $email = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
 
-        if ($this->attemptLogin($email, $password)) {
+        $user = $this->userService->verifyCredentials($email, $password);
+        if ($user !== null) {
+            $_SESSION['user'] = [
+                'email' => $user['email'],
+                'full_name' => $user['full_name'],
+            ];
             $_SESSION['flash_success'] = 'Connexion réussie.';
             header('Location: /?page=dashboard');
             exit;
@@ -286,33 +346,15 @@ final class App
         exit;
     }
 
-    private function attemptLogin(string $email, string $password): bool
+    private function seedDemoUser(): void
     {
-        $user = $this->demoUser();
-
-        if ($email !== $user['email']) {
-            return false;
+        if (!$this->userService->existsByEmail('demo@budgie.local')) {
+            try {
+                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
+            } catch (Exception $e) {
+                // Silently fail if demo user already exists
+            }
         }
-
-        if (!password_verify($password, $user['password_hash'])) {
-            return false;
-        }
-
-        $_SESSION['user'] = [
-            'email' => $user['email'],
-            'full_name' => $user['full_name'],
-        ];
-
-        return true;
-    }
-
-    private function demoUser(): array
-    {
-        return [
-            'email' => 'demo@budgie.local',
-            'full_name' => 'Utilisateur démo',
-            'password_hash' => password_hash('BudgieDemo2026!', PASSWORD_DEFAULT),
-        ];
     }
 
     private function isAuthenticated(): bool
