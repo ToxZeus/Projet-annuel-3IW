@@ -15,6 +15,7 @@ declare(strict_types=1);
             <a href="/?page=home">Accueil</a>
             <a href="/?page=dashboard">Espace perso</a>
             <a href="/?page=accounts">Comptes</a>
+            <a href="/?page=previsions">Previsions</a>
             <a href="/?page=login">Connexion</a>
             <a href="/?page=logout">Déconnexion</a>
         </nav>

@@ -128,6 +128,10 @@ final class App
                 'title' => 'Budgie | Nouveau revenu',
                 'template' => 'pages/incomes/create.php',
             ],
+            'previsions' => [
+                'title' => 'Budgie | Prévisions',
+                'template' => 'pages/previsions.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -137,7 +141,7 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
@@ -219,6 +223,36 @@ final class App
                 return;
             }
             $data['account'] = $account;
+        } elseif ($page === 'previsions') {
+            $selectedMonth = trim((string) ($_GET['month'] ?? date('Y-m')));
+            if (!preg_match('/^\d{4}-\d{2}$/', $selectedMonth)) {
+                $selectedMonth = date('Y-m');
+            }
+
+            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+            $forecastRows = [];
+            $totals = [
+                'start_balance' => 0.0,
+                'incomes' => 0.0,
+                'expenses' => 0.0,
+                'interest' => 0.0,
+                'projected_balance' => 0.0,
+            ];
+
+            foreach ($accounts as $account) {
+                $forecast = $this->buildMonthlyForecast($account, $selectedMonth);
+                $forecastRows[] = $forecast;
+
+                $totals['start_balance'] += $forecast['start_balance'];
+                $totals['incomes'] += $forecast['incomes'];
+                $totals['expenses'] += $forecast['expenses'];
+                $totals['interest'] += $forecast['interest'];
+                $totals['projected_balance'] += $forecast['projected_balance'];
+            }
+
+            $data['selected_month'] = $selectedMonth;
+            $data['forecast_rows'] = $forecastRows;
+            $data['totals'] = $totals;
         }
 
         $content = $this->render($route['template'], $data);
@@ -578,6 +612,97 @@ final class App
 
         header('Location: /?page=account&id=' . $account['id']);
         exit;
+    }
+
+    private function buildMonthlyForecast(array $account, string $month): array
+    {
+        $incomes = $this->incomeService->findByAccount((int) $account['id']);
+        $expenses = $this->expenseService->findByAccount((int) $account['id']);
+
+        $incomeTotal = 0.0;
+        foreach ($incomes as $income) {
+            if ($this->occursInMonth($income, $month)) {
+                $incomeTotal += (float) $income['amount'];
+            }
+        }
+
+        $expenseTotal = 0.0;
+        foreach ($expenses as $expense) {
+            if ($this->occursInMonth($expense, $month)) {
+                $expenseTotal += (float) $expense['amount'];
+            }
+        }
+
+        $startBalance = (float) $account['balance'];
+        $annualRate = ((float) $account['interest_rate']) / 100;
+        $taxRate = ((float) $account['tax_rate']) / 100;
+        $interest = $startBalance * ($annualRate / 12) * (1 - $taxRate);
+        $projectedBalance = $startBalance + $incomeTotal - $expenseTotal + $interest;
+
+        return [
+            'account_id' => (int) $account['id'],
+            'account_name' => $account['short_name'],
+            'start_balance' => $startBalance,
+            'incomes' => $incomeTotal,
+            'expenses' => $expenseTotal,
+            'interest' => $interest,
+            'projected_balance' => $projectedBalance,
+        ];
+    }
+
+    private function occursInMonth(array $entry, string $month): bool
+    {
+        $targetMonthStart = DateTimeImmutable::createFromFormat('Y-m-d', $month . '-01');
+        if (!$targetMonthStart) {
+            return false;
+        }
+        $targetMonthEnd = $targetMonthStart->modify('last day of this month');
+
+        $startDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['start_date']);
+        if (!$startDate) {
+            return false;
+        }
+
+        $endDate = null;
+        if (!empty($entry['end_date'])) {
+            $parsedEndDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['end_date']);
+            if ($parsedEndDate) {
+                $endDate = $parsedEndDate;
+            }
+        }
+
+        if ($startDate > $targetMonthEnd) {
+            return false;
+        }
+
+        if ($endDate !== null && $endDate < $targetMonthStart) {
+            return false;
+        }
+
+        $frequency = strtolower(trim((string) ($entry['frequency'] ?? 'ponctuel')));
+
+        if ($frequency === 'ponctuel') {
+            return $startDate >= $targetMonthStart && $startDate <= $targetMonthEnd;
+        }
+
+        if ($frequency === 'mensuel') {
+            return true;
+        }
+
+        if ($frequency === 'periodic' || $frequency === 'periodique' || $frequency === 'periodique') {
+            $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
+            if ($monthsInterval <= 0) {
+                $monthsInterval = 1;
+            }
+
+            $startMonthIndex = ((int) $startDate->format('Y')) * 12 + ((int) $startDate->format('n'));
+            $targetMonthIndex = ((int) $targetMonthStart->format('Y')) * 12 + ((int) $targetMonthStart->format('n'));
+            $delta = $targetMonthIndex - $startMonthIndex;
+
+            return $delta >= 0 && ($delta % $monthsInterval === 0);
+        }
+
+        return true;
     }
 
     private function render(string $template, array $data = []): string

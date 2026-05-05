@@ -365,6 +365,29 @@ h1 {
     opacity: 0.9;
 }
 
+.forecast-table-wrap {
+    overflow-x: auto;
+}
+
+.forecast-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+}
+
+.forecast-table th,
+.forecast-table td {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+}
+
+.forecast-table th {
+    color: var(--muted);
+    font-weight: 700;
+}
+
 @media (max-width: 768px) {
     .section-header {
         flex-direction: column;
