@@ -303,6 +303,19 @@ h1 {
     text-decoration: underline;
 }
 
+.hidden {
+    display: none !important;
+}
+
+.show-more-wrapper {
+    text-align: center;
+    margin-top: 18px;
+}
+
+.show-more-wrapper .button {
+    min-width: 160px;
+}
+
 .detail-grid {
     display: grid;
     grid-template-columns: 1fr 320px;

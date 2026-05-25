@@ -18,6 +18,7 @@ final class App
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
         $this->seedDemoUser();
+        $this->seedDemoExpenses();
     }
 
     public function run(): void
@@ -225,16 +226,36 @@ final class App
                 http_response_code(404);
                 return;
             }
+            $searchQuery = trim((string) ($_GET['q'] ?? ''));
+            $expenses = $this->expenseService->findByAccount($account['id']);
+            if ($searchQuery !== '') {
+                $expenses = array_values(array_filter($expenses, function (array $expense) use ($searchQuery) {
+                    return stripos((string) $expense['short_name'], $searchQuery) !== false
+                        || stripos((string) $expense['description'], $searchQuery) !== false;
+                }));
+            }
+
             $data['account'] = $account;
-            $data['expenses'] = $this->expenseService->findByAccount($account['id']);
+            $data['expenses'] = $expenses;
             $data['incomes'] = $this->incomeService->findByAccount($account['id']);
+            $data['search_query'] = $searchQuery;
         } elseif ($page === 'expenses') {
             $accounts = $this->accountService->findByUser($this->currentUser()['email']);
             $allExpenses = [];
             foreach ($accounts as $account) {
                 $allExpenses = array_merge($allExpenses, $this->expenseService->findByAccount($account['id']));
             }
+
+            $searchQuery = trim((string) ($_GET['q'] ?? ''));
+            if ($searchQuery !== '') {
+                $allExpenses = array_values(array_filter($allExpenses, function (array $expense) use ($searchQuery) {
+                    return stripos((string) $expense['short_name'], $searchQuery) !== false
+                        || stripos((string) $expense['description'], $searchQuery) !== false;
+                }));
+            }
+
             $data['expenses'] = $allExpenses;
+            $data['search_query'] = $searchQuery;
         } elseif ($page === 'expense' && isset($_GET['id'])) {
             $expense = $this->expenseService->findById((int) $_GET['id']);
             if (!$expense) {
@@ -496,6 +517,67 @@ final class App
             } catch (Exception $e) {
                 // Silently fail if demo user already exists
             }
+        }
+    }
+
+    private function seedDemoExpenses(): void
+    {
+        $user = $this->userService->findByEmail('demo@budgie.local');
+        if (!$user) {
+            return;
+        }
+
+        $accounts = $this->accountService->findByUser($user['email']);
+        if (empty($accounts)) {
+            $this->accountService->create($user['email'], 'Compte courant', 'Compte principal pour dépenses journalières', 0.0, 0.0);
+            $this->accountService->create($user['email'], 'Épargne', 'Compte d\'épargne pour objectif futur', 0.0, 0.0);
+            $accounts = $this->accountService->findByUser($user['email']);
+        }
+
+        $totalExpenses = 0;
+        foreach ($accounts as $account) {
+            $totalExpenses += count($this->expenseService->findByAccount((int) $account['id']));
+        }
+
+        if ($totalExpenses > 0) {
+            return;
+        }
+
+        $sampleExpenses = [
+            ['account' => 'Compte courant', 'short_name' => 'Courses supermarché', 'description' => 'Achats alimentaires et ménagers', 'amount' => 120.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-10', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Facture électricité', 'description' => 'Paiement de la facture mensuelle d\'électricité', 'amount' => 78.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Abonnement internet', 'description' => 'Frais mensuels internet et télévision', 'amount' => 29.99, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Loyer appartement', 'description' => 'Paiement du loyer mensuel', 'amount' => 850.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Café', 'description' => 'Achat d\'un café et viennoiserie', 'amount' => 4.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-15', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Facture mobile', 'description' => 'Abonnement téléphonique mensuel', 'amount' => 19.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Cadeau anniversaire', 'description' => 'Achat cadeau pour un anniversaire', 'amount' => 60.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-20', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Abonnement salle', 'description' => 'Frais mensuels de la salle de sport', 'amount' => 35.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Assurance habitation', 'description' => 'Paiement mensuel de l\'assurance maison', 'amount' => 12.50, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Pass transport', 'description' => 'Pass mensuel pour les transports publics', 'amount' => 45.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Transfert épargne', 'description' => 'Transfert occasionnel vers le compte épargne', 'amount' => 150.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-05', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Versement objectif vacances', 'description' => 'Mise de côté pour les vacances', 'amount' => 200.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-12', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Cadeau noël', 'description' => 'Épargne pour cadeau de fin d\'année', 'amount' => 100.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-18', 'end_date' => null],
+        ];
+
+        $accountMap = [];
+        foreach ($accounts as $account) {
+            $accountMap[$account['short_name']] = (int) $account['id'];
+        }
+
+        foreach ($sampleExpenses as $expense) {
+            if (!isset($accountMap[$expense['account']])) {
+                continue;
+            }
+            $this->expenseService->create(
+                $accountMap[$expense['account']],
+                $expense['short_name'],
+                $expense['description'],
+                $expense['amount'],
+                $expense['frequency'],
+                $expense['frequency_months'],
+                $expense['start_date'],
+                $expense['end_date']
+            );
         }
     }
 
