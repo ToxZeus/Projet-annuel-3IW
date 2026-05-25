@@ -329,7 +329,7 @@ final class App
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
 
-        echo $this->renderLayout($route['title'], $content);
+        echo $this->renderLayout($route['title'], $content, $data['user']);
     }
 
     private function handleSignup(): void
@@ -981,7 +981,7 @@ final class App
         return (string) ob_get_clean();
     }
 
-    private function renderLayout(string $title, string $content): string
+    private function renderLayout(string $title, string $content, ?array $user): string
     {
         ob_start();
         require BASE_PATH . '/templates/layout.php';

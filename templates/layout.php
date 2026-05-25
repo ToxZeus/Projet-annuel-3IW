@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+$isAuthenticated = !empty($user);
+$displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Utilisateur') : null;
 ?><!doctype html>
 <html lang="fr">
 <head>
@@ -13,11 +15,15 @@ declare(strict_types=1);
         <a class="brand" href="/?page=home">Budgie</a>
         <nav class="topbar-nav">
             <a href="/?page=home">Accueil</a>
-            <a href="/?page=dashboard">Espace perso</a>
-            <a href="/?page=accounts">Comptes</a>
-            <a href="/?page=previsions">Previsions</a>
-            <a href="/?page=login">Connexion</a>
-            <a href="/?page=logout">Déconnexion</a>
+            <?php if ($isAuthenticated) : ?>
+                <a href="/?page=dashboard">Espace perso</a>
+                <a href="/?page=accounts">Comptes</a>
+                <a href="/?page=previsions">Previsions</a>
+                <span class="topbar-user">Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?></span>
+                <a href="/?page=logout">Déconnexion</a>
+            <?php else : ?>
+                <a href="/?page=login">Connexion</a>
+            <?php endif; ?>
         </nav>
     </header>
     <main class="shell">

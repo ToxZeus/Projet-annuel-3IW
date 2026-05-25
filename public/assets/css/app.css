@@ -66,6 +66,12 @@ body {
     font-size: 0.95rem;
 }
 
+.topbar-user {
+    color: var(--accent-strong);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
 .hero {
     width: min(720px, 100%);
     padding: 48px;
