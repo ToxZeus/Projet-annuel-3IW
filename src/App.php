@@ -243,11 +243,12 @@ final class App
         if ($this->isAuthenticated()) {
             $data['user'] = $this->userService->findByEmail($this->currentUser()['email']) ?? $this->currentUser();
         }
-if ($page === 'dashboard') {
-    $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-    $totalExpenses = 0;
-    $totalIncomes  = 0;
-    foreach ($accounts as $acc) {
+        if ($page === 'dashboard') {
+            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+            $accounts = $this->withComputedBalances($accounts);
+            $totalExpenses = 0;
+            $totalIncomes  = 0;
+            foreach ($accounts as $acc) {
         $totalExpenses += count($this->expenseService->findByAccount($acc['id']));
         $totalIncomes  += count($this->incomeService->findByAccount($acc['id']));
     }
@@ -256,13 +257,14 @@ if ($page === 'dashboard') {
     $data['nb_incomes']  = $totalIncomes;
 } else
         if ($page === 'accounts') {
-            $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
+            $data['accounts'] = $this->withComputedBalances($this->accountService->findByUser($this->currentUser()['email']));
         } elseif ($page === 'account' && isset($_GET['id'])) {
             $account = $this->accountService->findById((int) $_GET['id']);
             if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
+            $account = $this->withComputedBalance($account);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
             $expenses = $this->expenseService->findByAccount($account['id']);
             if ($searchQuery !== '') {
@@ -1194,6 +1196,39 @@ if ($page === 'dashboard') {
         exit;
     }
 
+    private function withComputedBalances(array $accounts): array
+    {
+        return array_map(fn (array $account): array => $this->withComputedBalance($account), $accounts);
+    }
+
+    private function withComputedBalance(array $account): array
+    {
+        $account['initial_balance'] = (float) ($account['balance'] ?? 0);
+        $account['balance'] = $this->computeCurrentBalance($account);
+
+        return $account;
+    }
+
+    private function computeCurrentBalance(array $account): float
+    {
+        return $this->computeBalanceUntil($account, new DateTimeImmutable('today'));
+    }
+
+    private function computeBalanceUntil(array $account, DateTimeImmutable $cutoffDate): float
+    {
+        $balance = (float) ($account['balance'] ?? 0);
+
+        foreach ($this->incomeService->findByAccount((int) $account['id']) as $income) {
+            $balance += $this->amountUntilDate($income, $cutoffDate);
+        }
+
+        foreach ($this->expenseService->findByAccount((int) $account['id']) as $expense) {
+            $balance -= $this->amountUntilDate($expense, $cutoffDate);
+        }
+
+        return $balance;
+    }
+
     private function buildMonthlyForecast(array $account, string $month): array
     {
         $incomes = $this->incomeService->findByAccount((int) $account['id']);
@@ -1213,7 +1248,10 @@ if ($page === 'dashboard') {
             }
         }
 
-        $startBalance = (float) $account['balance'];
+        $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', $month . '-01');
+        $startBalance = $monthStart
+            ? $this->computeBalanceUntil($account, $monthStart->modify('-1 day'))
+            : (float) $account['balance'];
         $annualRate = ((float) $account['interest_rate']) / 100;
         $taxRate = ((float) $account['tax_rate']) / 100;
         $interest = $startBalance * ($annualRate / 12) * (1 - $taxRate);
@@ -1283,6 +1321,75 @@ if ($page === 'dashboard') {
         }
 
         return true;
+    }
+
+    private function amountUntilDate(array $entry, DateTimeImmutable $cutoffDate): float
+    {
+        $startDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['start_date']);
+        if (!$startDate || $startDate > $cutoffDate) {
+            return 0.0;
+        }
+
+        $effectiveEndDate = $cutoffDate;
+        if (!empty($entry['end_date'])) {
+            $endDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['end_date']);
+            if ($endDate && $endDate < $effectiveEndDate) {
+                $effectiveEndDate = $endDate;
+            }
+        }
+
+        if ($effectiveEndDate < $startDate) {
+            return 0.0;
+        }
+
+        $amount = (float) $entry['amount'];
+        $frequency = strtolower(trim((string) ($entry['frequency'] ?? 'ponctuel')));
+
+        if ($frequency === 'ponctuel') {
+            return $amount;
+        }
+
+        if ($frequency === 'mensuel') {
+            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, 1);
+        }
+
+        if ($frequency === 'periodic' || $frequency === 'periodique') {
+            $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
+            if ($monthsInterval <= 0) {
+                $monthsInterval = 1;
+            }
+
+            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, $monthsInterval);
+        }
+
+        return $amount;
+    }
+
+    private function countMonthlyOccurrences(DateTimeImmutable $startDate, DateTimeImmutable $endDate, int $monthsInterval): int
+    {
+        $count = 0;
+        $startMonthIndex = ((int) $startDate->format('Y')) * 12 + ((int) $startDate->format('n'));
+        $endMonthIndex = ((int) $endDate->format('Y')) * 12 + ((int) $endDate->format('n'));
+        $startDay = (int) $startDate->format('j');
+
+        for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex += $monthsInterval) {
+            $year = intdiv($monthIndex - 1, 12);
+            $month = (($monthIndex - 1) % 12) + 1;
+            $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
+            if (!$monthStart) {
+                continue;
+            }
+
+            $lastDay = (int) $monthStart->modify('last day of this month')->format('j');
+            $occurrenceDay = min($startDay, $lastDay);
+            $occurrenceDate = $monthStart->setDate($year, $month, $occurrenceDay);
+
+            if ($occurrenceDate >= $startDate && $occurrenceDate <= $endDate) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     private function render(string $template, array $data = []): string

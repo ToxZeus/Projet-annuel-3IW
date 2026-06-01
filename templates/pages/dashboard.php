@@ -10,11 +10,11 @@
             <strong><?= $nb_accounts ?? 0 ?></strong>
         </article>
         <article class="stat">
-            <span class="stat-label">Dépenses</span>
+            <span class="stat-label">Dépenses enregistrées</span>
             <strong><?= $nb_expenses ?? 0 ?></strong>
         </article>
         <article class="stat">
-            <span class="stat-label">Revenus</span>
+            <span class="stat-label">Revenus enregistrés</span>
             <strong><?= $nb_incomes ?? 0 ?></strong>
         </article>
     </div>
