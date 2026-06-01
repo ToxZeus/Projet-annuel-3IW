@@ -35,6 +35,7 @@ final class Database
                 email TEXT NOT NULL UNIQUE,
                 full_name TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
+                plan TEXT NOT NULL DEFAULT \'free\',
                 is_active BOOLEAN DEFAULT FALSE,
                 verification_token TEXT,
                 token_expiry TEXT,
@@ -44,6 +45,19 @@ final class Database
                 updated_at TEXT
             )
         ');
+
+        $userColumns = $pdo->query('PRAGMA table_info(users)')->fetchAll(PDO::FETCH_ASSOC);
+        $hasPlanColumn = false;
+        foreach ($userColumns as $column) {
+            if (($column['name'] ?? '') === 'plan') {
+                $hasPlanColumn = true;
+                break;
+            }
+        }
+
+        if (!$hasPlanColumn) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
+        }
 
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS accounts (

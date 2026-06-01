@@ -12,4 +12,8 @@ services:
       - APACHE_LOG_DIR=/var/log/apache2
       - APACHE_RUN_GROUP=www-data
       - APACHE_RUN_USER=www-data
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - APP_ENV=${APP_ENV:-development}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PREMIUM_PRICE_ID=${STRIPE_PREMIUM_PRICE_ID:-}
     container_name: budgie-app

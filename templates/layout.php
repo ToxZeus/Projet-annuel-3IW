@@ -19,7 +19,15 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
                 <a href="/?page=dashboard">Espace perso</a>
                 <a href="/?page=accounts">Comptes</a>
                 <a href="/?page=previsions">Previsions</a>
-                <span class="topbar-user">Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?></span>
+                <?php if (($user['plan'] ?? 'free') !== 'paid') : ?>
+                    <a href="/?page=subscriptions">Devenir premium</a>
+                <?php endif; ?>
+                <span class="topbar-user">
+                    Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?>
+                    <?php if (($user['plan'] ?? 'free') === 'paid') : ?>
+                        <span class="premium-badge" title="Compte premium">PRO</span>
+                    <?php endif; ?>
+                </span>
                 <a href="/?page=logout">Déconnexion</a>
             <?php else : ?>
                 <a href="/?page=login">Connexion</a>

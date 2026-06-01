@@ -28,6 +28,13 @@ final class AccountService
         return $this->db->fetchAll('SELECT * FROM accounts WHERE user_email = ? ORDER BY created_at DESC', [$userEmail]);
     }
 
+    public function countByUser(string $userEmail): int
+    {
+        $row = $this->db->fetch('SELECT COUNT(*) AS total FROM accounts WHERE user_email = ?', [$userEmail]);
+
+        return (int) ($row['total'] ?? 0);
+    }
+
     public function update(int $id, string $shortName, string $description, float $interestRate, float $taxRate): bool
     {
         return $this->db->exec(
