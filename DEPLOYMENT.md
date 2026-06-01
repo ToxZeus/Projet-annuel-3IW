@@ -69,19 +69,93 @@ Un seul service :
 
 ## Déploiement en production
 
-Pour la production, considérez :
+Le déploiement production utilise :
 
-1. **Image optimisée** : Réduire la taille de l'image
-2. **Variables d'environnement** : Passer via `.env`
-3. **HTTPS/TLS** : Ajouter un reverse proxy (Traefik, Nginx)
-4. **Database** : Migrer vers PostgreSQL/MySQL si nécessaire
-5. **Backups** : Automatiser les sauvegardes SQLite
-6. **Monitoring** : Ajouter logging centralisé (ELK stack, etc.)
-7. **Secrets** : Gérer les secrets avec Docker Secrets
+- l'application PHP/Apache construite par le `Dockerfile`
+- Caddy comme reverse proxy public
+- HTTPS automatique avec Let's Encrypt
+- la base SQLite persistante dans `./data/budgie.db`
 
-### Exemple avec Nginx reverse proxy
+### Prérequis serveur
 
-Voir `docker-compose.production.yml` pour un exemple de configuration production.
+- Un serveur Linux avec Docker et Docker Compose
+- Les ports `80` et `443` ouverts
+- Un nom de domaine qui pointe vers l'IP publique du serveur
+
+### Configurer le nom de domaine
+
+Chez votre fournisseur DNS, créez un enregistrement `A` :
+
+```text
+budgie.example.com -> IP_PUBLIQUE_DU_SERVEUR
+```
+
+Remplacez `budgie.example.com` par votre vrai domaine ou sous-domaine.
+
+### Préparer les variables d'environnement
+
+Sur le serveur :
+
+```bash
+cp .env.production.example .env.production
+```
+
+Puis modifiez au minimum :
+
+```env
+DOMAIN_NAME=budgie.example.com
+APP_URL=https://budgie.example.com
+SMTP_FROM_EMAIL=noreply@budgie.example.com
+```
+
+Pour activer le paiement premium Stripe, renseignez aussi :
+
+```env
+STRIPE_SECRET_KEY=sk_live_xxx
+STRIPE_PREMIUM_PRICE_ID=price_xxx
+```
+
+### Lancer en production
+
+```bash
+docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
+```
+
+L'application sera disponible sur :
+
+```text
+https://budgie.example.com
+```
+
+Caddy demande et renouvelle automatiquement le certificat HTTPS tant que le domaine pointe bien vers le serveur.
+
+### Mettre à jour l'application sur le serveur
+
+```bash
+git pull origin main
+docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
+```
+
+### Voir les logs production
+
+```bash
+docker compose -f docker-compose.production.yml logs -f
+```
+
+### Arrêter la production
+
+```bash
+docker compose -f docker-compose.production.yml down
+```
+
+Les volumes Caddy conservent les certificats HTTPS. Le dossier `./data` conserve la base SQLite.
+
+### Points à renforcer ensuite
+
+1. **Backups** : automatiser les sauvegardes SQLite
+2. **Secrets** : gérer les secrets avec Docker Secrets ou un coffre externe
+3. **Monitoring** : ajouter logs centralisés et alertes
+4. **Database** : migrer vers PostgreSQL/MySQL si le trafic augmente
 
 ## Dépannage
 

@@ -7,15 +7,16 @@ final class UserService
     {
     }
 
-    public function create(string $email, string $fullName, string $password, string $verificationToken = '', string $tokenExpiry = ''): int
+    public function create(string $email, string $fullName, string $password, string $verificationToken = '', string $tokenExpiry = '', string $plan = 'free'): int
     {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         $now = date('Y-m-d H:i:s');
+        $plan = in_array($plan, ['free', 'paid'], true) ? $plan : 'free';
 
         $this->db->exec(
-            'INSERT INTO users (email, full_name, password_hash, is_active, verification_token, token_expiry, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$email, $fullName, $passwordHash, false, $verificationToken ?: null, $tokenExpiry ?: null, $now]
+            'INSERT INTO users (email, full_name, password_hash, plan, is_active, verification_token, token_expiry, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [$email, $fullName, $passwordHash, $plan, false, $verificationToken ?: null, $tokenExpiry ?: null, $now]
         );
 
         return (int) $this->db->lastInsertId();
@@ -132,5 +133,15 @@ final class UserService
         );
 
         return true;
+    }
+
+    public function updatePlan(string $email, string $plan): bool
+    {
+        $plan = in_array($plan, ['free', 'paid'], true) ? $plan : 'free';
+
+        return $this->db->exec(
+            'UPDATE users SET plan = ?, updated_at = ? WHERE email = ?',
+            [$plan, date('Y-m-d H:i:s'), $email]
+        ) > 0;
     }
 }

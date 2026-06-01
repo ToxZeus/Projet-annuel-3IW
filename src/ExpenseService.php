@@ -28,6 +28,7 @@ final class ExpenseService
         return $this->db->fetchAll('SELECT * FROM expenses WHERE account_id = ? ORDER BY start_date DESC', [$accountId]);
     }
 
+<<<<<<< HEAD
     public function findByUser(string $userEmail): array
     {
         return $this->db->fetchAll(
@@ -38,6 +39,13 @@ final class ExpenseService
              ORDER BY e.start_date DESC',
             [$userEmail]
         );
+=======
+    public function countByAccount(int $accountId): int
+    {
+        $row = $this->db->fetch('SELECT COUNT(*) AS total FROM expenses WHERE account_id = ?', [$accountId]);
+
+        return (int) ($row['total'] ?? 0);
+>>>>>>> fix/free-user-limits
     }
 
     public function update(int $id, string $shortName, string $description, float $amount, string $frequency, ?int $frequencyMonths, string $startDate, ?string $endDate): bool

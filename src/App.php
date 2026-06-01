@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 final class App
 {
+    private const FREE_ACCOUNT_LIMIT = 2;
+    private const FREE_EXPENSE_LIMIT_PER_ACCOUNT = 7;
+    private const FREE_INCOME_LIMIT_PER_ACCOUNT = 2;
+
     private Database $db;
     private UserService $userService;
     private AccountService $accountService;
@@ -31,6 +35,16 @@ final class App
 
         if ($page === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleLogin();
+            return;
+        }
+
+        if ($page === 'subscription-checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleSubscriptionCheckout();
+            return;
+        }
+
+        if ($page === 'subscription-success') {
+            $this->handleSubscriptionSuccess();
             return;
         }
 
@@ -137,6 +151,10 @@ final class App
                 'title' => 'Budgie | Réinitialiser le mot de passe',
                 'template' => 'pages/reset-password.php',
             ],
+            'subscriptions' => [
+                'title' => 'Budgie | Abonnements',
+                'template' => 'pages/subscriptions.php',
+            ],
             'dashboard' => [
                 'title' => 'Budgie | Tableau de bord',
                 'template' => 'pages/dashboard.php',
@@ -190,7 +208,7 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
@@ -348,6 +366,7 @@ if ($page === 'dashboard') {
         $fullName = ValidationHelper::cleanName($_POST['full_name'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+        $plan = 'free';
 
         // Validation
         if (empty($email) || empty($fullName) || empty($password)) {
@@ -386,7 +405,7 @@ if ($page === 'dashboard') {
             $tokenExpiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
 
             // Créer l'utilisateur avec le token
-            $this->userService->create($email, $fullName, $password, $verificationToken, $tokenExpiry);
+            $this->userService->create($email, $fullName, $password, $verificationToken, $tokenExpiry, $plan);
 
             // Envoyer l'email d'activation
             EmailHelper::sendActivation($email, explode(' ', $fullName)[0], $verificationToken);
@@ -412,6 +431,7 @@ if ($page === 'dashboard') {
             $_SESSION['user'] = [
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
+                'plan' => $user['plan'] ?? 'free',
             ];
             $_SESSION['flash_success'] = 'Connexion réussie.';
             header('Location: /?page=dashboard');
@@ -428,6 +448,81 @@ if ($page === 'dashboard') {
         unset($_SESSION['user']);
         $_SESSION['flash_success'] = 'Déconnexion réussie.';
         header('Location: /?page=login');
+        exit;
+    }
+
+    private function handleSubscriptionCheckout(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        if (!$this->isFreeUser()) {
+            $_SESSION['flash_success'] = 'Votre compte est déjà premium.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        $priceId = getenv('STRIPE_PREMIUM_PRICE_ID') ?: '';
+        $appUrl = rtrim(getenv('APP_URL') ?: $this->baseUrl(), '/');
+
+        if ($secretKey === '' || $priceId === '') {
+            $_SESSION['flash_error'] = 'Stripe n\'est pas configuré. Renseignez STRIPE_SECRET_KEY et STRIPE_PREMIUM_PRICE_ID.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $session = $this->createStripeCheckoutSession($secretKey, [
+            'mode' => 'subscription',
+            'line_items[0][price]' => $priceId,
+            'line_items[0][quantity]' => '1',
+            'customer_email' => $this->currentUser()['email'],
+            'client_reference_id' => $this->currentUser()['email'],
+            'success_url' => $appUrl . '/?page=subscription-success&session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => $appUrl . '/?page=subscriptions',
+        ]);
+
+        if (!isset($session['url'])) {
+            $_SESSION['flash_error'] = $session['error'] ?? 'Impossible de créer la session Stripe.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        header('Location: ' . $session['url']);
+        exit;
+    }
+
+    private function handleSubscriptionSuccess(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        $sessionId = trim((string) ($_GET['session_id'] ?? ''));
+
+        if ($secretKey === '' || $sessionId === '') {
+            $_SESSION['flash_error'] = 'Validation Stripe impossible.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $session = $this->retrieveStripeCheckoutSession($secretKey, $sessionId);
+        if (($session['payment_status'] ?? '') !== 'paid' || ($session['client_reference_id'] ?? '') !== $this->currentUser()['email']) {
+            $_SESSION['flash_error'] = 'Paiement Stripe non confirmé.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $this->userService->updatePlan($this->currentUser()['email'], 'paid');
+        $_SESSION['user']['plan'] = 'paid';
+        $_SESSION['flash_success'] = 'Votre compte est maintenant premium.';
+        header('Location: /?page=subscriptions');
         exit;
     }
 
@@ -514,7 +609,7 @@ if ($page === 'dashboard') {
         if (!$this->userService->existsByEmail('demo@budgie.local')) {
             try {
                 // Créer un utilisateur démo activé directement (sans token)
-                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
+                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!', '', '', 'paid');
                 
                 // Activer le compte démo en supprimant le token d'activation
                 $user = $this->userService->findByEmail('demo@budgie.local');
@@ -528,6 +623,8 @@ if ($page === 'dashboard') {
                 // Silently fail if demo user already exists
             }
         }
+
+        $this->db->exec('UPDATE users SET plan = ? WHERE email = ?', ['paid', 'demo@budgie.local']);
     }
 
     private function seedDemoExpenses(): void
@@ -601,6 +698,72 @@ if ($page === 'dashboard') {
         return $_SESSION['user'] ?? null;
     }
 
+    private function isFreeUser(): bool
+    {
+        $user = $this->currentUser();
+        if ($user === null) {
+            return true;
+        }
+
+        if (isset($user['plan'])) {
+            return $user['plan'] !== 'paid';
+        }
+
+        $storedUser = $this->userService->findByEmail((string) $user['email']);
+
+        return ($storedUser['plan'] ?? 'free') !== 'paid';
+    }
+
+    private function createStripeCheckoutSession(string $secretKey, array $params): array
+    {
+        return $this->stripeRequest($secretKey, 'POST', 'https://api.stripe.com/v1/checkout/sessions', $params);
+    }
+
+    private function retrieveStripeCheckoutSession(string $secretKey, string $sessionId): array
+    {
+        return $this->stripeRequest($secretKey, 'GET', 'https://api.stripe.com/v1/checkout/sessions/' . rawurlencode($sessionId));
+    }
+
+    private function stripeRequest(string $secretKey, string $method, string $url, array $params = []): array
+    {
+        $options = [
+            'http' => [
+                'method' => $method,
+                'header' => "Authorization: Bearer {$secretKey}\r\n",
+                'ignore_errors' => true,
+            ],
+        ];
+
+        if ($method === 'POST') {
+            $options['http']['header'] .= "Content-Type: application/x-www-form-urlencoded\r\n";
+            $options['http']['content'] = http_build_query($params);
+        }
+
+        $response = file_get_contents($url, false, stream_context_create($options));
+        if ($response === false) {
+            return ['error' => 'Stripe ne répond pas.'];
+        }
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            return ['error' => 'Réponse Stripe invalide.'];
+        }
+
+        if (isset($decoded['error']['message'])) {
+            return ['error' => $decoded['error']['message']];
+        }
+
+        return $decoded;
+    }
+
+    private function baseUrl(): string
+    {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8080';
+
+        return $scheme . '://' . $host;
+    }
+
     private function handleAccountCreate(): void
     {
         if (!$this->isAuthenticated()) {
@@ -621,6 +784,12 @@ if ($page === 'dashboard') {
         }
 
         try {
+            if ($this->isFreeUser() && $this->accountService->countByUser($this->currentUser()['email']) >= self::FREE_ACCOUNT_LIMIT) {
+                $_SESSION['flash_error'] = 'La formule gratuite permet de créer 2 comptes bancaires maximum.';
+                header('Location: /?page=accounts');
+                exit;
+            }
+
             $this->accountService->create(
                 $this->currentUser()['email'],
                 $shortName,
@@ -710,6 +879,12 @@ if ($page === 'dashboard') {
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        if ($this->isFreeUser() && $this->expenseService->countByAccount($accountId) >= self::FREE_EXPENSE_LIMIT_PER_ACCOUNT) {
+            $_SESSION['flash_error'] = 'La formule gratuite permet de créer 7 dépenses maximum par compte.';
             header('Location: /?page=account&id=' . $accountId);
             exit;
         }
@@ -813,6 +988,12 @@ if ($page === 'dashboard') {
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        if ($this->isFreeUser() && $this->incomeService->countByAccount($accountId) >= self::FREE_INCOME_LIMIT_PER_ACCOUNT) {
+            $_SESSION['flash_error'] = 'La formule gratuite permet de créer 2 revenus maximum par compte.';
             header('Location: /?page=account&id=' . $accountId);
             exit;
         }
