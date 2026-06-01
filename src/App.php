@@ -60,21 +60,13 @@ final class App
             return;
         }
 
-        if ($page === 'forgot-password') {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->handleForgotPasswordPost();
-            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                // Afficher le formulaire
-            }
+        if ($page === 'forgot-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleForgotPasswordPost();
             return;
         }
 
-        if ($page === 'reset-password') {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->handleResetPasswordPost();
-            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                // Afficher le formulaire si token valide
-            }
+        if ($page === 'reset-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleResetPasswordPost();
             return;
         }
 
