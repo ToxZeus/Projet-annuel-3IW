@@ -19,6 +19,7 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
                 <a href="/?page=dashboard">Espace perso</a>
                 <a href="/?page=accounts">Comptes</a>
                 <a href="/?page=previsions">Previsions</a>
+                <a href="/?page=profile">Profil</a>
                 <?php if (($user['plan'] ?? 'free') !== 'paid') : ?>
                     <a href="/?page=subscriptions">Devenir premium</a>
                 <?php endif; ?>

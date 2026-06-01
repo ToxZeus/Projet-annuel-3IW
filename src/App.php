@@ -38,8 +38,18 @@ final class App
             return;
         }
 
+        if ($page === 'profile' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleProfilePost();
+            return;
+        }
+
         if ($page === 'subscription-checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleSubscriptionCheckout();
+            return;
+        }
+
+        if ($page === 'subscription-cancel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleSubscriptionCancel();
             return;
         }
 
@@ -147,6 +157,10 @@ final class App
                 'title' => 'Budgie | Abonnements',
                 'template' => 'pages/subscriptions.php',
             ],
+            'profile' => [
+                'title' => 'Budgie | Compte',
+                'template' => 'pages/profile.php',
+            ],
             'dashboard' => [
                 'title' => 'Budgie | Tableau de bord',
                 'template' => 'pages/dashboard.php',
@@ -200,7 +214,7 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
@@ -226,6 +240,9 @@ final class App
             'error' => $_SESSION['flash_error'] ?? null,
             'success' => $_SESSION['flash_success'] ?? null,
         ];
+        if ($this->isAuthenticated()) {
+            $data['user'] = $this->userService->findByEmail($this->currentUser()['email']) ?? $this->currentUser();
+        }
 if ($page === 'dashboard') {
     $accounts = $this->accountService->findByUser($this->currentUser()['email']);
     $totalExpenses = 0;
@@ -424,6 +441,8 @@ if ($page === 'dashboard') {
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
                 'plan' => $user['plan'] ?? 'free',
+                'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
+                'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
             ];
             $_SESSION['flash_success'] = 'Connexion réussie.';
             header('Location: /?page=dashboard');
@@ -440,6 +459,71 @@ if ($page === 'dashboard') {
         unset($_SESSION['user']);
         $_SESSION['flash_success'] = 'Déconnexion réussie.';
         header('Location: /?page=login');
+        exit;
+    }
+
+    private function handleProfilePost(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $action = $_POST['action'] ?? '';
+        if ($action === 'update-name') {
+            $fullName = ValidationHelper::cleanName($_POST['full_name'] ?? '');
+            if ($fullName === '') {
+                $_SESSION['flash_error'] = 'Le nom est obligatoire.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $storedUser = $this->userService->findByEmail($this->currentUser()['email']);
+            if ($storedUser === null) {
+                $_SESSION['flash_error'] = 'Utilisateur introuvable.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $this->userService->update((int) $storedUser['id'], $fullName);
+            $_SESSION['user']['full_name'] = $fullName;
+            $_SESSION['flash_success'] = 'Nom mis à jour.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        if ($action === 'update-password') {
+            $currentPassword = (string) ($_POST['current_password'] ?? '');
+            $password = (string) ($_POST['password'] ?? '');
+            $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+
+            if (!$this->userService->verifyPassword($this->currentUser()['email'], $currentPassword)) {
+                $_SESSION['flash_error'] = 'Mot de passe actuel incorrect.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            if (!ValidationHelper::validatePassword($password)) {
+                $_SESSION['flash_error'] = 'Le nouveau mot de passe doit avoir au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre et 1 caractère spécial.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            if ($password !== $passwordConfirm) {
+                $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $this->userService->updatePasswordByEmail($this->currentUser()['email'], $password);
+            $_SESSION['flash_success'] = 'Mot de passe mis à jour.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        $_SESSION['flash_error'] = 'Action inconnue.';
+        header('Location: /?page=profile');
         exit;
     }
 
@@ -512,9 +596,51 @@ if ($page === 'dashboard') {
         }
 
         $this->userService->updatePlan($this->currentUser()['email'], 'paid');
+        $this->userService->updateStripeSubscription(
+            $this->currentUser()['email'],
+            isset($session['customer']) ? (string) $session['customer'] : null,
+            isset($session['subscription']) ? (string) $session['subscription'] : null
+        );
         $_SESSION['user']['plan'] = 'paid';
+        $_SESSION['user']['stripe_customer_id'] = $session['customer'] ?? null;
+        $_SESSION['user']['stripe_subscription_id'] = $session['subscription'] ?? null;
         $_SESSION['flash_success'] = 'Votre compte est maintenant premium.';
-        header('Location: /?page=subscriptions');
+        header('Location: /?page=profile');
+        exit;
+    }
+
+    private function handleSubscriptionCancel(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $storedUser = $this->userService->findByEmail($this->currentUser()['email']);
+        if (($storedUser['plan'] ?? 'free') !== 'paid') {
+            $_SESSION['flash_success'] = 'Votre compte est déjà en formule gratuite.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        $subscriptionId = (string) ($storedUser['stripe_subscription_id'] ?? '');
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        if ($subscriptionId !== '' && $secretKey !== '') {
+            $response = $this->cancelStripeSubscription($secretKey, $subscriptionId);
+            if (isset($response['error'])) {
+                $_SESSION['flash_error'] = $response['error'];
+                header('Location: /?page=profile');
+                exit;
+            }
+        }
+
+        $this->userService->updatePlan($this->currentUser()['email'], 'free');
+        $this->userService->clearStripeSubscription($this->currentUser()['email']);
+        $_SESSION['user']['plan'] = 'free';
+        $_SESSION['user']['stripe_subscription_id'] = null;
+        $_SESSION['flash_success'] = 'Abonnement premium résilié. Votre compte est repassé en gratuit.';
+        header('Location: /?page=profile');
         exit;
     }
 
@@ -714,6 +840,11 @@ if ($page === 'dashboard') {
     private function retrieveStripeCheckoutSession(string $secretKey, string $sessionId): array
     {
         return $this->stripeRequest($secretKey, 'GET', 'https://api.stripe.com/v1/checkout/sessions/' . rawurlencode($sessionId));
+    }
+
+    private function cancelStripeSubscription(string $secretKey, string $subscriptionId): array
+    {
+        return $this->stripeRequest($secretKey, 'DELETE', 'https://api.stripe.com/v1/subscriptions/' . rawurlencode($subscriptionId));
     }
 
     private function stripeRequest(string $secretKey, string $method, string $url, array $params = []): array

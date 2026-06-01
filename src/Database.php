@@ -41,22 +41,29 @@ final class Database
                 token_expiry TEXT,
                 reset_token TEXT,
                 reset_token_expiry TEXT,
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT
             )
         ');
 
         $userColumns = $pdo->query('PRAGMA table_info(users)')->fetchAll(PDO::FETCH_ASSOC);
-        $hasPlanColumn = false;
+        $existingUserColumns = [];
         foreach ($userColumns as $column) {
-            if (($column['name'] ?? '') === 'plan') {
-                $hasPlanColumn = true;
-                break;
-            }
+            $existingUserColumns[] = $column['name'] ?? '';
         }
 
-        if (!$hasPlanColumn) {
+        if (!in_array('plan', $existingUserColumns, true)) {
             $pdo->exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
+        }
+
+        if (!in_array('stripe_customer_id', $existingUserColumns, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT');
+        }
+
+        if (!in_array('stripe_subscription_id', $existingUserColumns, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT');
         }
 
         $pdo->exec('

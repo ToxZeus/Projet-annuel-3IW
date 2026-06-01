@@ -144,4 +144,35 @@ final class UserService
             [$plan, date('Y-m-d H:i:s'), $email]
         ) > 0;
     }
+
+    public function updatePasswordByEmail(string $email, string $newPassword): bool
+    {
+        return $this->db->exec(
+            'UPDATE users SET password_hash = ?, updated_at = ? WHERE email = ?',
+            [password_hash($newPassword, PASSWORD_DEFAULT), date('Y-m-d H:i:s'), $email]
+        ) > 0;
+    }
+
+    public function verifyPassword(string $email, string $password): bool
+    {
+        $user = $this->findByEmail($email);
+
+        return $user !== null && password_verify($password, $user['password_hash']);
+    }
+
+    public function updateStripeSubscription(string $email, ?string $customerId, ?string $subscriptionId): bool
+    {
+        return $this->db->exec(
+            'UPDATE users SET stripe_customer_id = ?, stripe_subscription_id = ?, updated_at = ? WHERE email = ?',
+            [$customerId, $subscriptionId, date('Y-m-d H:i:s'), $email]
+        ) > 0;
+    }
+
+    public function clearStripeSubscription(string $email): bool
+    {
+        return $this->db->exec(
+            'UPDATE users SET stripe_subscription_id = NULL, updated_at = ? WHERE email = ?',
+            [date('Y-m-d H:i:s'), $email]
+        ) > 0;
+    }
 }
