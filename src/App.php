@@ -217,7 +217,18 @@ final class App
             'error' => $_SESSION['flash_error'] ?? null,
             'success' => $_SESSION['flash_success'] ?? null,
         ];
-
+if ($page === 'dashboard') {
+    $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+    $totalExpenses = 0;
+    $totalIncomes  = 0;
+    foreach ($accounts as $acc) {
+        $totalExpenses += count($this->expenseService->findByAccount($acc['id']));
+        $totalIncomes  += count($this->incomeService->findByAccount($acc['id']));
+    }
+    $data['nb_accounts'] = count($accounts);
+    $data['nb_expenses'] = $totalExpenses;
+    $data['nb_incomes']  = $totalIncomes;
+} else
         if ($page === 'accounts') {
             $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
         } elseif ($page === 'account' && isset($_GET['id'])) {
