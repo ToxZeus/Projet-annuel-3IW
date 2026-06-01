@@ -17,7 +17,6 @@ final class App
         $this->accountService = new AccountService($this->db);
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
-        $this->seedDemoUser();
         $this->seedDemoExpenses();
     }
 
@@ -222,7 +221,7 @@ final class App
             $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
         } elseif ($page === 'account' && isset($_GET['id'])) {
             $account = $this->accountService->findById((int) $_GET['id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
@@ -240,12 +239,7 @@ final class App
             $data['incomes'] = $this->incomeService->findByAccount($account['id']);
             $data['search_query'] = $searchQuery;
         } elseif ($page === 'expenses') {
-            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-            $allExpenses = [];
-            foreach ($accounts as $account) {
-                $allExpenses = array_merge($allExpenses, $this->expenseService->findByAccount($account['id']));
-            }
-
+            $allExpenses = $this->expenseService->findByUser($this->currentUser()['email']);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
             if ($searchQuery !== '') {
                 $allExpenses = array_values(array_filter($allExpenses, function (array $expense) use ($searchQuery) {
@@ -262,33 +256,38 @@ final class App
                 http_response_code(404);
                 return;
             }
+            $account = $this->accountService->findById((int) $expense['account_id']);
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+                http_response_code(404);
+                return;
+            }
             $data['expense'] = $expense;
-            $data['account'] = $this->accountService->findById($expense['account_id']);
+            $data['account'] = $account;
         } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
             $data['account'] = $account;
         } elseif ($page === 'incomes') {
-            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-            $allIncomes = [];
-            foreach ($accounts as $account) {
-                $allIncomes = array_merge($allIncomes, $this->incomeService->findByAccount($account['id']));
-            }
-            $data['incomes'] = $allIncomes;
+            $data['incomes'] = $this->incomeService->findByUser($this->currentUser()['email']);
         } elseif ($page === 'income' && isset($_GET['id'])) {
             $income = $this->incomeService->findById((int) $_GET['id']);
             if (!$income) {
                 http_response_code(404);
                 return;
             }
+            $account = $this->accountService->findById((int) $income['account_id']);
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+                http_response_code(404);
+                return;
+            }
             $data['income'] = $income;
-            $data['account'] = $this->accountService->findById($income['account_id']);
+            $data['account'] = $account;
         } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }

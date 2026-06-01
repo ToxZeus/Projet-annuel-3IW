@@ -26,7 +26,9 @@ final class ValidationHelper
 
     public static function cleanName(string $name): string
     {
-        return ucfirst(trim(filter_var($name, FILTER_SANITIZE_STRING)));
+        $cleanName = trim(strip_tags($name));
+
+        return ucfirst(strtolower($cleanName));
     }
 
     public static function sanitizeString(string $str): string

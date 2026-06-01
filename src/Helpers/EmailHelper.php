@@ -62,6 +62,10 @@ final class EmailHelper
     {
         $config = self::getMailer();
 
+        if ($config['use_smtp']) {
+            return self::sendSmtpEmail($config, $to, $subject, $htmlBody, $textBody);
+        }
+
         $headers = "From: {$config['from_name']} <{$config['from_email']}>\r\n";
         $headers .= "Reply-To: {$config['from_email']}\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
@@ -70,12 +74,114 @@ final class EmailHelper
         try {
             $result = mail($to, $subject, $htmlBody, $headers);
             if (!$result) {
-                error_log("Erreur d'envoi d'email à $to : " . error_get_last()['message']);
+                $lastError = error_get_last();
+                $errorMessage = is_array($lastError) && isset($lastError['message'])
+                    ? $lastError['message']
+                    : 'unknown mail error';
+
+                error_log("Erreur d'envoi d'email à $to : " . $errorMessage);
             }
             return $result;
         } catch (Throwable $e) {
             error_log("Exception lors de l'envoi d'email : " . $e->getMessage());
             return false;
         }
+    }
+
+    private static function sendSmtpEmail(array $config, string $to, string $subject, string $htmlBody, string $textBody): bool
+    {
+        $host = $config['host'];
+        $port = $config['port'];
+        $fromEmail = $config['from_email'];
+        $fromName = $config['from_name'];
+        $socket = @fsockopen($host, $port, $errorCode, $errorMessage, 10);
+
+        if (!$socket) {
+            error_log("Impossible de se connecter au serveur SMTP {$host}:{$port} - {$errorMessage}");
+            return false;
+        }
+
+        try {
+            self::smtpReadResponse($socket, [220]);
+            self::smtpSendCommand($socket, 'EHLO localhost', [250]);
+
+            if ($config['username'] !== '') {
+                self::smtpSendCommand($socket, 'AUTH LOGIN', [334]);
+                self::smtpSendCommand($socket, base64_encode($config['username']), [334]);
+                self::smtpSendCommand($socket, base64_encode($config['password']), [235]);
+            }
+
+            self::smtpSendCommand($socket, 'MAIL FROM:<' . $fromEmail . '>', [250]);
+            self::smtpSendCommand($socket, 'RCPT TO:<' . $to . '>', [250, 251]);
+            self::smtpSendCommand($socket, 'DATA', [354]);
+
+            $message = self::buildEmailMessage($fromEmail, $fromName, $to, $subject, $htmlBody, $textBody);
+            fwrite($socket, $message . "\r\n.\r\n");
+            self::smtpReadResponse($socket, [250]);
+            self::smtpSendCommand($socket, 'QUIT', [221]);
+
+            fclose($socket);
+            return true;
+        } catch (Throwable $e) {
+            error_log('Erreur SMTP : ' . $e->getMessage());
+            fclose($socket);
+            return false;
+        }
+    }
+
+    private static function buildEmailMessage(string $fromEmail, string $fromName, string $to, string $subject, string $htmlBody, string $textBody): string
+    {
+        $boundary = '=_budgie_' . bin2hex(random_bytes(8));
+
+        return implode("\r\n", [
+            'From: ' . $fromName . ' <' . $fromEmail . '>',
+            'To: ' . $to,
+            'Subject: ' . $subject,
+            'MIME-Version: 1.0',
+            'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
+            '',
+            '--' . $boundary,
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $textBody,
+            '',
+            '--' . $boundary,
+            'Content-Type: text/html; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $htmlBody,
+            '',
+            '--' . $boundary . '--',
+        ]);
+    }
+
+    private static function smtpSendCommand($socket, string $command, array $expectedCodes): void
+    {
+        fwrite($socket, $command . "\r\n");
+        self::smtpReadResponse($socket, $expectedCodes);
+    }
+
+    private static function smtpReadResponse($socket, array $expectedCodes): string
+    {
+        $response = '';
+
+        while (($line = fgets($socket, 515)) !== false) {
+            $response .= $line;
+            if (preg_match('/^(\d{3})([\s-])/', $line, $matches) !== 1) {
+                continue;
+            }
+
+            if ($matches[2] === ' ') {
+                $code = (int) $matches[1];
+                if (!in_array($code, $expectedCodes, true)) {
+                    throw new RuntimeException('Réponse SMTP inattendue: ' . trim($response));
+                }
+
+                return $response;
+            }
+        }
+
+        throw new RuntimeException('Aucune réponse SMTP reçue.');
     }
 }
