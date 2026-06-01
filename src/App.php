@@ -609,7 +609,7 @@ if ($page === 'dashboard') {
         if (!$this->userService->existsByEmail('demo@budgie.local')) {
             try {
                 // Créer un utilisateur démo activé directement (sans token)
-                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!', '', '', 'paid');
+                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
                 
                 // Activer le compte démo en supprimant le token d'activation
                 $user = $this->userService->findByEmail('demo@budgie.local');
@@ -624,7 +624,7 @@ if ($page === 'dashboard') {
             }
         }
 
-        $this->db->exec('UPDATE users SET plan = ? WHERE email = ?', ['paid', 'demo@budgie.local']);
+        $this->db->exec('UPDATE users SET plan = ? WHERE email = ?', ['free', 'demo@budgie.local']);
     }
 
     private function seedDemoExpenses(): void
