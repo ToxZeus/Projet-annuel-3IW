@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./data:/var/www/html/data
+    environment:
+      - APACHE_LOG_DIR=/var/log/apache2
+      - APACHE_RUN_GROUP=www-data
+      - APACHE_RUN_USER=www-data
+      - APP_URL=${APP_URL:-http://localhost:8080}
+      - APP_ENV=${APP_ENV:-development}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PREMIUM_PRICE_ID=${STRIPE_PREMIUM_PRICE_ID:-}
+      - SMTP_HOST=${SMTP_HOST:-mailhog}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-noreply@budgie.local}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Budgie}
+    container_name: budgie-app
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    container_name: budgie-mailhog
