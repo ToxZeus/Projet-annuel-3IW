@@ -112,6 +112,21 @@ final class Database
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
         ');
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT \'\',
+                amount REAL NOT NULL,
+                frequency TEXT NOT NULL DEFAULT \'ponctuel\',
+                frequency_months INTEGER DEFAULT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT DEFAULT NULL
+            )
+        ');
+    
     }
 
     public function query(string $sql, array $params = []): PDOStatement

@@ -12,6 +12,7 @@ final class App
     private AccountService $accountService;
     private ExpenseService $expenseService;
     private IncomeService $incomeService;
+    private ExceptionService $exceptionService;
 
     public function __construct()
     {
@@ -21,6 +22,7 @@ final class App
         $this->accountService = new AccountService($this->db);
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
+        $this->exceptionService = new ExceptionService($this->db);
         $this->seedDemoExpenses();
     }
 
@@ -78,6 +80,22 @@ final class App
         if ($page === 'reset-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleResetPasswordPost();
             return;
+        }
+
+        if ($page === 'exception-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleExceptionCreate();
+            return;
+        }
+
+        if ($page === 'exception' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleExceptionUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleExceptionDelete((int) $_GET['id']);
+                return;
+            }
         }
 
         if ($page === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -214,6 +232,14 @@ final class App
                 'title' => 'Budgie | Administration',
                 'template' => 'pages/admin.php',
             ],
+            'exception-create' => [
+                'title' => 'Budgie | Nouvelle exception',
+                'template' => 'pages/exceptions/create.php',
+            ],
+            'exception' => [
+                'title' => 'Budgie | Exception',
+                'template' => 'pages/exceptions/detail.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -223,7 +249,7 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin', 'exception', 'exception-create']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
@@ -292,10 +318,20 @@ final class App
                 }));
             }
 
+            $searchQueryIncome = trim((string) ($_GET['qr'] ?? ''));
+            $incomes = $this->incomeService->findByAccount($account['id']);
+            if ($searchQueryIncome !== '') {
+                $incomes = array_values(array_filter($incomes, function (array $income) use ($searchQueryIncome) {
+                    return stripos((string) $income['short_name'], $searchQueryIncome) !== false
+                        || stripos((string) $income['description'], $searchQueryIncome) !== false;
+                }));
+            }
+
             $data['account'] = $account;
             $data['expenses'] = $expenses;
-            $data['incomes'] = $this->incomeService->findByAccount($account['id']);
+            $data['incomes'] = $incomes;
             $data['search_query'] = $searchQuery;
+            $data['search_query_income'] = $searchQueryIncome;
         } elseif ($page === 'expenses') {
             $allExpenses = $this->expenseService->findByUser($this->currentUser()['email']);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
@@ -321,6 +357,7 @@ final class App
             }
             $data['expense'] = $expense;
             $data['account'] = $account;
+            $data['exceptions'] = $this->exceptionService->findByEntity('expense', (int) $expense['id']);
         } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
             if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -343,6 +380,7 @@ final class App
             }
             $data['income'] = $income;
             $data['account'] = $account;
+            $data['exceptions'] = $this->exceptionService->findByEntity('income', (int) $income['id']);
         } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
             if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -380,6 +418,18 @@ final class App
             $data['selected_month'] = $selectedMonth;
             $data['forecast_rows'] = $forecastRows;
             $data['totals'] = $totals;
+        }elseif ($page === 'exception-create') {
+            $type     = trim((string) ($_GET['type'] ?? 'expense'));
+            $entityId = (int) ($_GET['entity_id'] ?? 0);
+            $data['entity_type'] = $type;
+            $data['entity_id']   = $entityId;
+        } elseif ($page === 'exception' && isset($_GET['id'])) {
+            $exception = $this->exceptionService->findById((int) $_GET['id']);
+            if (!$exception) {
+                http_response_code(404);
+                return;
+            }
+            $data['exception'] = $exception;
         }elseif ($page === 'admin') {
         $allUsers = $this->db->fetchAll(
         'SELECT u.*, (SELECT COUNT(*) FROM accounts a WHERE a.user_email = u.email) AS nb_accounts
@@ -921,6 +971,69 @@ final class App
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8080';
 
         return $scheme . '://' . $host;
+    }
+    private function handleExceptionCreate(): void
+    {
+        $type        = trim((string) ($_POST['entity_type'] ?? 'expense'));
+        $entityId    = (int) ($_POST['entity_id'] ?? 0);
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception-create&type=' . $type . '&entity_id=' . $entityId);
+            exit;
+        }
+
+        $this->exceptionService->create($type, $entityId, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception créée avec succès.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
+    }
+
+    private function handleExceptionUpdate(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) { http_response_code(404); exit; }
+
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception&id=' . $id);
+            exit;
+        }
+
+        $this->exceptionService->update($id, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception mise à jour.';
+        header('Location: /?page=exception&id=' . $id);
+        exit;
+    }
+
+    private function handleExceptionDelete(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) { http_response_code(404); exit; }
+
+        $type     = $exception['entity_type'];
+        $entityId = $exception['entity_id'];
+        $this->exceptionService->delete($id);
+        $_SESSION['flash_success'] = 'Exception supprimée.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
     }
     private function handleAdminPost(): void
     {

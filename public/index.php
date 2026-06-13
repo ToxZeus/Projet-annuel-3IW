@@ -15,6 +15,7 @@ require BASE_PATH . '/src/UserService.php';
 require BASE_PATH . '/src/AccountService.php';
 require BASE_PATH . '/src/ExpenseService.php';
 require BASE_PATH . '/src/IncomeService.php';
+require BASE_PATH . '/src/ExceptionService.php';
 
 $app = new App();
 $app->run();

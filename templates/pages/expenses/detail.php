@@ -58,3 +58,40 @@
         </form>
     </article>
 </section>
+<section class="section" style="padding-top: 0;">
+    <div class="section-header">
+        <div>
+            <p class="eyebrow">Exceptions</p>
+            <h2>Exceptions liées à cette dépense</h2>
+        </div>
+        <a class="button" href="/?page=exception-create&type=expense&entity_id=<?= $expense['id'] ?>">+ Nouvelle exception</a>
+    </div>
+
+    <?php if (empty($exceptions)) : ?>
+        <p class="empty-state">Aucune exception pour cette dépense.</p>
+    <?php else : ?>
+        <div class="accounts-grid">
+            <?php foreach ($exceptions as $exc) : ?>
+                <article class="account-card">
+                    <h3><?= htmlspecialchars($exc['name'], ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p><?= htmlspecialchars($exc['description'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="card-body">
+                        <dl>
+                            <dt>Montant exception</dt>
+                            <dd class="balance"><?= number_format((float) $exc['amount'], 2, ',', ' ') ?> €</dd>
+                            <dt>Fréquence</dt>
+                            <dd><?= htmlspecialchars($exc['frequency'], ENT_QUOTES, 'UTF-8') ?> <?= $exc['frequency_months'] ? '(' . $exc['frequency_months'] . ' mois)' : '' ?></dd>
+                            <dt>Début</dt>
+                            <dd><?= htmlspecialchars($exc['start_date'], ENT_QUOTES, 'UTF-8') ?></dd>
+                            <dt>Fin</dt>
+                            <dd><?= htmlspecialchars($exc['end_date'] ?? 'Indéfinie', ENT_QUOTES, 'UTF-8') ?></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a class="link" href="/?page=exception&id=<?= $exc['id'] ?>">Voir / Éditer</a>
+                    </div>
+                </article>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</section>
