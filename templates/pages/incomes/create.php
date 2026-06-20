@@ -31,19 +31,21 @@ $frequencyMonths = $old['frequencyMonths'] ?? '';
                 <input type="number" step="0.01" name="amount" required value="<?= htmlspecialchars((string) ($old['amount'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
-            <label>
-                Fréquence
-                <select name="frequency" data-frequency-select>
-                    <option value="ponctuel" <?= $frequency === 'ponctuel' ? 'selected' : '' ?>>Ponctuel</option>
-                    <option value="mensuel" <?= $frequency === 'mensuel' ? 'selected' : '' ?>>Tous les 1 mois</option>
-                    <option value="periodic" <?= $frequency === 'periodic' ? 'selected' : '' ?>>Tous les N mois</option>
-                </select>
-            </label>
+            <div class="frequency-group">
+                <label>
+                    Fréquence
+                    <select name="frequency" data-frequency-select>
+                        <option value="ponctuel" <?= $frequency === 'ponctuel' ? 'selected' : '' ?>>Ponctuel</option>
+                        <option value="mensuel" <?= $frequency === 'mensuel' ? 'selected' : '' ?>>Tous les mois</option>
+                        <option value="periodic" <?= $frequency === 'periodic' ? 'selected' : '' ?>>Périodique (tous les N mois)</option>
+                    </select>
+                </label>
 
-            <label data-frequency-months>
-                Tous les N mois (si applicable)
-                <input type="number" name="frequency_months" min="1" value="<?= htmlspecialchars((string) $frequencyMonths, ENT_QUOTES, 'UTF-8') ?>">
-            </label>
+                <label data-frequency-months<?= $frequency !== 'periodic' ? ' class="hidden"' : '' ?>>
+                    Tous les combien de mois ?
+                    <input type="number" name="frequency_months" min="2" value="<?= htmlspecialchars((string) $frequencyMonths, ENT_QUOTES, 'UTF-8') ?>">
+                </label>
+            </div>
 
             <label>
                 Date de début
