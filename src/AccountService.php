@@ -7,12 +7,12 @@ final class AccountService
     {
     }
 
-    public function create(string $userEmail, string $shortName, string $description, float $interestRate = 0, float $taxRate = 0): int
+    public function create(string $userEmail, string $shortName, string $description, float $interestRate = 0, float $taxRate = 0, float $initialBalance = 0.0): int
     {
         $this->db->exec(
             'INSERT INTO accounts (user_email, short_name, description, created_at, interest_rate, tax_rate, balance)
-             VALUES (?, ?, ?, ?, ?, ?, 0)',
-            [$userEmail, $shortName, $description, date('Y-m-d'), $interestRate, $taxRate]
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$userEmail, $shortName, $description, date('Y-m-d'), $interestRate, $taxRate, $initialBalance]
         );
 
         return (int) $this->db->lastInsertId();
@@ -35,11 +35,11 @@ final class AccountService
         return (int) ($row['total'] ?? 0);
     }
 
-    public function update(int $id, string $shortName, string $description, float $interestRate, float $taxRate): bool
+    public function update(int $id, string $shortName, string $description, float $interestRate, float $taxRate, float $initialBalance): bool
     {
         return $this->db->exec(
-            'UPDATE accounts SET short_name = ?, description = ?, interest_rate = ?, tax_rate = ? WHERE id = ?',
-            [$shortName, $description, $interestRate, $taxRate, $id]
+            'UPDATE accounts SET short_name = ?, description = ?, interest_rate = ?, tax_rate = ?, balance = ? WHERE id = ?',
+            [$shortName, $description, $interestRate, $taxRate, $initialBalance, $id]
         ) > 0;
     }
 

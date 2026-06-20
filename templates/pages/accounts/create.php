@@ -24,6 +24,11 @@
             </label>
 
             <label>
+                Solde initial (€)
+                <input type="number" name="initial_balance" step="0.01" value="0">
+            </label>
+
+            <label>
                 Taux de rémunération (%)
                 <input type="number" name="interest_rate" step="0.01" min="0" max="100" value="0">
             </label>

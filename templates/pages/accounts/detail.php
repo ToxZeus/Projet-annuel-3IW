@@ -32,6 +32,11 @@
                 </label>
 
                 <label>
+                    Solde initial (€)
+                    <input type="number" name="initial_balance" step="0.01" value="<?= number_format((float) ($account['initial_balance'] ?? $account['balance'] ?? 0), 2, '.', '') ?>">
+                </label>
+
+                <label>
                     Taux de rémunération (%)
                     <input type="number" name="interest_rate" step="0.01" min="0" max="100" value="<?= $account['interest_rate'] ?>">
                 </label>
