@@ -94,7 +94,12 @@ final class EmailHelper
         $port = $config['port'];
         $fromEmail = $config['from_email'];
         $fromName = $config['from_name'];
-        $socket = @fsockopen($host, $port, $errorCode, $errorMessage, 10);
+
+        if ($port === 465) {
+            $socket = @stream_socket_client("ssl://{$host}:{$port}", $errorCode, $errorMessage, 10);
+        } else {
+            $socket = @stream_socket_client("tcp://{$host}:{$port}", $errorCode, $errorMessage, 10);
+        }
 
         if (!$socket) {
             error_log("Impossible de se connecter au serveur SMTP {$host}:{$port} - {$errorMessage}");
@@ -104,6 +109,12 @@ final class EmailHelper
         try {
             self::smtpReadResponse($socket, [220]);
             self::smtpSendCommand($socket, 'EHLO localhost', [250]);
+
+            if ($port === 587) {
+                self::smtpSendCommand($socket, 'STARTTLS', [220]);
+                stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+                self::smtpSendCommand($socket, 'EHLO localhost', [250]);
+            }
 
             if ($config['username'] !== '') {
                 self::smtpSendCommand($socket, 'AUTH LOGIN', [334]);
