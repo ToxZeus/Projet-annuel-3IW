@@ -364,9 +364,13 @@ final class App
             $data['totals'] = $totals;
         }
 
+        $oldInputKey = $this->oldInputKey($page);
+        $data['old'] = $_SESSION['old_input'][$oldInputKey] ?? [];
+
         $content = $this->render($route['template'], $data);
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
+        unset($_SESSION['old_input'][$oldInputKey]);
 
         echo $this->renderLayout($route['title'], $content, $data['user']);
     }
@@ -378,16 +382,19 @@ final class App
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
         $plan = 'free';
+        $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
 
         // Validation
         if (empty($email) || empty($fullName) || empty($password)) {
             $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
+            $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
             header('Location: /?page=signup');
             exit;
         }
 
         if (!ValidationHelper::validateEmail($email)) {
             $_SESSION['flash_error'] = 'Email invalide.';
+            $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
             header('Location: /?page=signup');
             exit;
         }
@@ -420,6 +427,7 @@ final class App
 
             // Envoyer l'email d'activation
             EmailHelper::sendActivation($email, explode(' ', $fullName)[0], $verificationToken);
+            unset($_SESSION['old_input']['signup']);
 
             $_SESSION['flash_success'] = 'Inscription réussie. Veuillez confirmer votre adresse email en cliquant sur le lien reçu.';
             header('Location: /?page=login');
@@ -452,6 +460,7 @@ final class App
         }
 
         $_SESSION['flash_error'] = 'Identifiants invalides.';
+        $this->flashOldInput('login', ['email' => $email]);
         header('Location: /?page=login');
         exit;
     }
@@ -670,6 +679,7 @@ final class App
     private function handleForgotPasswordPost(): void
     {
         $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
+        $this->flashOldInput('forgot-password', ['email' => $email]);
 
         if (empty($email)) {
             $_SESSION['flash_error'] = 'Veuillez entrer votre adresse email.';
@@ -816,6 +826,24 @@ final class App
     private function currentUser(): ?array
     {
         return $_SESSION['user'] ?? null;
+    }
+
+    private function flashOldInput(string $key, array $input): void
+    {
+        $_SESSION['old_input'][$key] = $input;
+    }
+
+    private function oldInputKey(string $page): string
+    {
+        if (in_array($page, ['expense', 'income', 'account'], true) && isset($_GET['id'])) {
+            return $page . ':' . (int) $_GET['id'];
+        }
+
+        if (in_array($page, ['expense-create', 'income-create'], true) && isset($_GET['account_id'])) {
+            return $page . ':' . (int) $_GET['account_id'];
+        }
+
+        return $page;
     }
 
     private function isFreeUser(): bool
@@ -994,6 +1022,8 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('expense-create:' . $accountId, $oldInput);
 
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -1004,7 +1034,15 @@ final class App
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
-            header('Location: /?page=account&id=' . $accountId);
+            header('Location: /?page=expense-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
+            header('Location: /?page=expense-create&account_id=' . $accountId);
             exit;
         }
 
@@ -1016,6 +1054,7 @@ final class App
 
         try {
             $this->expenseService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            unset($_SESSION['old_input']['expense-create:' . $accountId]);
             $_SESSION['flash_success'] = 'Dépense créée avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création de la dépense.';
@@ -1046,9 +1085,19 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('expense:' . $id, $oldInput);
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=expense&id=' . $id);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
             header('Location: /?page=expense&id=' . $id);
             exit;
         }
@@ -1103,6 +1152,8 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('income-create:' . $accountId, $oldInput);
 
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -1113,7 +1164,15 @@ final class App
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
-            header('Location: /?page=account&id=' . $accountId);
+            header('Location: /?page=income-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
+            header('Location: /?page=income-create&account_id=' . $accountId);
             exit;
         }
 
@@ -1125,6 +1184,7 @@ final class App
 
         try {
             $this->incomeService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            unset($_SESSION['old_input']['income-create:' . $accountId]);
             $_SESSION['flash_success'] = 'Revenu créé avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création du revenu.';
@@ -1155,9 +1215,19 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('income:' . $id, $oldInput);
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=income&id=' . $id);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
             header('Location: /?page=income&id=' . $id);
             exit;
         }

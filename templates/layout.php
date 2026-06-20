@@ -107,6 +107,29 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
             showMoreButton.dataset.expanded = 'false';
             renderList();
         });
+
+        document.querySelectorAll('[data-frequency-select]').forEach(function (select) {
+            const form = select.closest('form');
+            const monthsField = form?.querySelector('[data-frequency-months]');
+            const monthsInput = monthsField?.querySelector('input[name="frequency_months"]');
+
+            if (!monthsField || !monthsInput) {
+                return;
+            }
+
+            function updateFrequencyMonths() {
+                const needsMonths = select.value === 'periodic';
+                monthsField.classList.toggle('hidden', !needsMonths);
+                monthsInput.required = needsMonths;
+                monthsInput.disabled = !needsMonths;
+                if (!needsMonths) {
+                    monthsInput.value = '';
+                }
+            }
+
+            select.addEventListener('change', updateFrequencyMonths);
+            updateFrequencyMonths();
+        });
     });
     </script>
 </body>

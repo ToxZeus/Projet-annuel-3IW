@@ -1,3 +1,8 @@
+<?php
+$frequency = $old['frequency'] ?? ($income['frequency'] ?? 'ponctuel');
+$frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? '');
+?>
+
 <section class="section">
     <div class="section-header">
         <div>
@@ -21,32 +26,41 @@
 
             <label>
                 Nom court
-                <input type="text" name="short_name" required value="<?= htmlspecialchars($income['short_name'], ENT_QUOTES, 'UTF-8') ?>">
+                <input type="text" name="short_name" required value="<?= htmlspecialchars($old['shortName'] ?? $income['short_name'], ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
             <label>
                 Description
-                <textarea name="description" required><?= htmlspecialchars($income['description'], ENT_QUOTES, 'UTF-8') ?></textarea>
+                <textarea name="description" required><?= htmlspecialchars($old['description'] ?? $income['description'], ENT_QUOTES, 'UTF-8') ?></textarea>
             </label>
 
             <label>
                 Montant (€)
-                <input type="number" step="0.01" name="amount" required value="<?= $income['amount'] ?>">
+                <input type="number" step="0.01" name="amount" required value="<?= htmlspecialchars((string) ($old['amount'] ?? $income['amount']), ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
             <label>
                 Fréquence
-                <input type="text" name="frequency" value="<?= htmlspecialchars($income['frequency'], ENT_QUOTES, 'UTF-8') ?>">
+                <select name="frequency" data-frequency-select>
+                    <option value="ponctuel" <?= $frequency === 'ponctuel' ? 'selected' : '' ?>>Ponctuel</option>
+                    <option value="mensuel" <?= $frequency === 'mensuel' ? 'selected' : '' ?>>Tous les 1 mois</option>
+                    <option value="periodic" <?= $frequency === 'periodic' ? 'selected' : '' ?>>Tous les N mois</option>
+                </select>
+            </label>
+
+            <label data-frequency-months>
+                Tous les N mois
+                <input type="number" name="frequency_months" min="1" value="<?= htmlspecialchars((string) $frequencyMonths, ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
             <label>
                 Date de début
-                <input type="date" name="start_date" value="<?= htmlspecialchars($income['start_date'], ENT_QUOTES, 'UTF-8') ?>">
+                <input type="date" name="start_date" value="<?= htmlspecialchars($old['startDate'] ?? $income['start_date'], ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
             <label>
                 Date de fin
-                <input type="date" name="end_date" value="<?= htmlspecialchars($income['end_date'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                <input type="date" name="end_date" value="<?= htmlspecialchars($old['endDate'] ?? ($income['end_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
             <button class="button" type="submit">Mettre à jour</button>
