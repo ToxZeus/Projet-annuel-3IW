@@ -19,7 +19,16 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
                 <a href="/?page=dashboard">Espace perso</a>
                 <a href="/?page=accounts">Comptes</a>
                 <a href="/?page=previsions">Previsions</a>
-                <span class="topbar-user">Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?></span>
+                <a href="/?page=profile">Profil</a>
+                <?php if (($user['plan'] ?? 'free') !== 'paid') : ?>
+                    <a href="/?page=subscriptions">Devenir premium</a>
+                <?php endif; ?>
+                <span class="topbar-user">
+                    Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?>
+                    <?php if (($user['plan'] ?? 'free') === 'paid') : ?>
+                        <span class="premium-badge" title="Compte premium">PRO</span>
+                    <?php endif; ?>
+                </span>
                 <a href="/?page=logout">Déconnexion</a>
             <?php else : ?>
                 <a href="/?page=login">Connexion</a>
@@ -97,6 +106,29 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
 
             showMoreButton.dataset.expanded = 'false';
             renderList();
+        });
+
+        document.querySelectorAll('[data-frequency-select]').forEach(function (select) {
+            const form = select.closest('form');
+            const monthsField = form?.querySelector('[data-frequency-months]');
+            const monthsInput = monthsField?.querySelector('input[name="frequency_months"]');
+
+            if (!monthsField || !monthsInput) {
+                return;
+            }
+
+            function updateFrequencyMonths() {
+                const needsMonths = select.value === 'periodic';
+                monthsField.classList.toggle('hidden', !needsMonths);
+                monthsInput.required = needsMonths;
+                monthsInput.disabled = !needsMonths;
+                if (!needsMonths) {
+                    monthsInput.value = '';
+                }
+            }
+
+            select.addEventListener('change', updateFrequencyMonths);
+            updateFrequencyMonths();
         });
     });
     </script>

@@ -65,6 +65,16 @@ docker-compose down
 docker-compose up -d --build
 ```
 
+### Sur serveur avec nom de domaine
+
+Le projet fournit aussi une configuration production avec Docker Compose et Caddy :
+
+- `docker-compose.production.yml`
+- `deploy/Caddyfile`
+- `.env.production.example`
+
+Voir `DEPLOYMENT.md` pour configurer le DNS, le domaine public et le lancement HTTPS sur serveur.
+
 ## Structure du projet
 
 ```
@@ -124,6 +134,12 @@ docker-compose up -d --build
 - Hash des mots de passe avec `password_hash()` (bcrypt)
 - Seed automatique d'un utilisateur de démo
 
+## Abonnements
+
+- Plan gratuit par defaut : 2 comptes bancaires, 7 depenses par compte, 2 revenus par compte
+- Plan premium : limites levees
+- Passage premium via Stripe Checkout avec `STRIPE_SECRET_KEY` et `STRIPE_PREMIUM_PRICE_ID`
+
 ## Base de données
 
 ### Tables
@@ -133,6 +149,7 @@ docker-compose up -d --build
 - `email` (UNIQUE)
 - `full_name`
 - `password_hash`
+- `plan` (`free` ou `paid`)
 - `created_at`
 
 **accounts**
@@ -202,4 +219,3 @@ Commits signés avec clé SSH.
 ## Licence
 
 Privé - Projet annuel 3IW
-

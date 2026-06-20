@@ -35,16 +35,39 @@ final class Database
                 email TEXT NOT NULL UNIQUE,
                 full_name TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
+                plan TEXT NOT NULL DEFAULT \'free\',
                 is_active BOOLEAN DEFAULT FALSE,
                 verification_token TEXT,
                 token_expiry TEXT,
                 reset_token TEXT,
                 reset_token_expiry TEXT,
+                stripe_customer_id TEXT,
+                stripe_subscription_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT
             )
         ');
 
+        $userColumns = $pdo->query('PRAGMA table_info(users)')->fetchAll(PDO::FETCH_ASSOC);
+        $existingUserColumns = [];
+        foreach ($userColumns as $column) {
+            $existingUserColumns[] = $column['name'] ?? '';
+        }
+
+        if (!in_array('plan', $existingUserColumns, true)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
+        }
+
+        if (!in_array('stripe_customer_id', $existingUserColumns, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT');
+        }
+
+        if (!in_array('stripe_subscription_id', $existingUserColumns, true)) {
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT');
+        }
+        if (!in_array('is_admin', $existingUserColumns, true)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0");
+        }
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,6 +112,21 @@ final class Database
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
         ');
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT \'\',
+                amount REAL NOT NULL,
+                frequency TEXT NOT NULL DEFAULT \'ponctuel\',
+                frequency_months INTEGER DEFAULT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT DEFAULT NULL
+            )
+        ');
+    
     }
 
     public function query(string $sql, array $params = []): PDOStatement

@@ -13,7 +13,7 @@
     <form class="auth-form" method="post" action="/?page=login">
         <label>
             Adresse email
-            <input type="email" name="email" required autocomplete="email" placeholder="demo@budgie.local">
+            <input type="email" name="email" required autocomplete="email" placeholder="demo@budgie.local" value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </label>
 
         <label>

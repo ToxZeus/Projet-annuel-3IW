@@ -1,6 +1,7 @@
 .git
 .gitignore
 .env
+.env.production
 .DS_Store
 Thumbs.db
 node_modules

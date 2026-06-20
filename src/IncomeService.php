@@ -28,6 +28,25 @@ final class IncomeService
         return $this->db->fetchAll('SELECT * FROM incomes WHERE account_id = ? ORDER BY start_date DESC', [$accountId]);
     }
 
+    public function findByUser(string $userEmail): array
+    {
+        return $this->db->fetchAll(
+            'SELECT i.*, a.short_name AS account_short_name
+             FROM incomes i
+             INNER JOIN accounts a ON a.id = i.account_id
+             WHERE a.user_email = ?
+             ORDER BY i.start_date DESC',
+            [$userEmail]
+        );
+    }
+
+    public function countByAccount(int $accountId): int
+    {
+        $row = $this->db->fetch('SELECT COUNT(*) AS total FROM incomes WHERE account_id = ?', [$accountId]);
+
+        return (int) ($row['total'] ?? 0);
+    }
+
     public function update(int $id, string $shortName, string $description, float $amount, string $frequency, ?int $frequencyMonths, string $startDate, ?string $endDate): bool
     {
         return $this->db->exec(

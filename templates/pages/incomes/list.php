@@ -30,7 +30,7 @@
                             <dt>Montant</dt>
                             <dd class="balance"><?= number_format($inc['amount'], 2, ',', ' ') ?> €</dd>
                             <dt>Compte</dt>
-                            <dd><?= htmlspecialchars($inc['account_id'], ENT_QUOTES, 'UTF-8') ?></dd>
+                            <dd><?= htmlspecialchars($inc['account_short_name'] ?? (string) $inc['account_id'], ENT_QUOTES, 'UTF-8') ?></dd>
                         </dl>
                     </div>
                     <div class="card-footer">

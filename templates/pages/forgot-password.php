@@ -1,29 +1,26 @@
-<div class="container" style="max-width: 400px; margin-top: 50px;">
-    <h1>Réinitialiser votre mot de passe</h1>
+<section class="hero auth-card">
+    <p class="eyebrow">Mot de passe oublié</p>
+    <h1>Recevoir un lien de réinitialisation.</h1>
+    <p class="lead">
+        Indique l'adresse email associée à ton compte. Si elle existe, un lien de réinitialisation sera envoyé.
+    </p>
 
-    <?php if ($error): ?>
-        <div class="alert alert-danger" role="alert">
-            <?php echo htmlspecialchars($error); ?>
-        </div>
+    <?php if (!empty($error)) : ?>
+        <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
-    <?php if ($success): ?>
-        <div class="alert alert-success" role="alert">
-            <?php echo htmlspecialchars($success); ?>
-        </div>
+    <?php if (!empty($success)) : ?>
+        <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
-    <form method="POST" action="/?page=forgot-password">
-        <div class="form-group mb-3">
-            <label for="email">Adresse email</label>
-            <input type="email" class="form-control" id="email" name="email" 
-                   placeholder="vous@example.com" required autocomplete="email">
-        </div>
+    <form class="auth-form" method="post" action="/?page=forgot-password">
+        <label>
+            Adresse email
+            <input type="email" name="email" required autocomplete="email" placeholder="demo@budgie.local" value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+        </label>
 
-        <button type="submit" class="btn btn-primary w-100">Envoyer le lien de réinitialisation</button>
+        <button class="button" type="submit">Envoyer le lien</button>
     </form>
 
-    <p class="mt-3 text-center">
-        <a href="/?page=login">Retour à la connexion</a>
-    </p>
-</div>
+    <p class="hint"><a href="/?page=login" class="link">Retour à la connexion</a></p>
+</section>

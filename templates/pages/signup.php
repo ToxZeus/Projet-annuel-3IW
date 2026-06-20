@@ -16,12 +16,12 @@
     <form method="post" action="/?page=signup" class="auth-form">
         <label>
             Email
-            <input type="email" name="email" required>
+            <input type="email" name="email" required value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </label>
 
         <label>
             Nom complet
-            <input type="text" name="full_name" required>
+            <input type="text" name="full_name" required value="<?= htmlspecialchars($old['full_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
         </label>
 
         <label>

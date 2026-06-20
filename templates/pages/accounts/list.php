@@ -32,6 +32,8 @@
                         <dl>
                             <dt>Solde</dt>
                             <dd class="balance"><?= number_format($account['balance'], 2, ',', ' ') ?> €</dd>
+                            <dt>Solde initial</dt>
+                            <dd><?= number_format((float) ($account['initial_balance'] ?? 0), 2, ',', ' ') ?> €</dd>
                             <dt>Taux de rémunération</dt>
                             <dd><?= number_format($account['interest_rate'], 2, ',', ' ') ?> %</dd>
                             <dt>Taux d'imposition</dt>

@@ -3,11 +3,16 @@ declare(strict_types=1);
 
 final class App
 {
+    private const FREE_ACCOUNT_LIMIT = 2;
+    private const FREE_EXPENSE_LIMIT_PER_ACCOUNT = 7;
+    private const FREE_INCOME_LIMIT_PER_ACCOUNT = 2;
+
     private Database $db;
     private UserService $userService;
     private AccountService $accountService;
     private ExpenseService $expenseService;
     private IncomeService $incomeService;
+    private ExceptionService $exceptionService;
 
     public function __construct()
     {
@@ -17,7 +22,7 @@ final class App
         $this->accountService = new AccountService($this->db);
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
-        $this->seedDemoUser();
+        $this->exceptionService = new ExceptionService($this->db);
         $this->seedDemoExpenses();
     }
 
@@ -35,6 +40,26 @@ final class App
             return;
         }
 
+        if ($page === 'profile' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleProfilePost();
+            return;
+        }
+
+        if ($page === 'subscription-checkout' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleSubscriptionCheckout();
+            return;
+        }
+
+        if ($page === 'subscription-cancel' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleSubscriptionCancel();
+            return;
+        }
+
+        if ($page === 'subscription-success') {
+            $this->handleSubscriptionSuccess();
+            return;
+        }
+
         if ($page === 'logout') {
             $this->handleLogout();
             return;
@@ -47,21 +72,34 @@ final class App
             return;
         }
 
-        if ($page === 'forgot-password') {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->handleForgotPasswordPost();
-            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                // Afficher le formulaire
-            }
+        if ($page === 'forgot-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleForgotPasswordPost();
             return;
         }
 
-        if ($page === 'reset-password') {
-            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-                $this->handleResetPasswordPost();
-            } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
-                // Afficher le formulaire si token valide
+        if ($page === 'reset-password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleResetPasswordPost();
+            return;
+        }
+
+        if ($page === 'exception-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleExceptionCreate();
+            return;
+        }
+
+        if ($page === 'exception' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleExceptionUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleExceptionDelete((int) $_GET['id']);
+                return;
             }
+        }
+
+        if ($page === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleAdminPost();
             return;
         }
 
@@ -138,6 +176,14 @@ final class App
                 'title' => 'Budgie | Réinitialiser le mot de passe',
                 'template' => 'pages/reset-password.php',
             ],
+            'subscriptions' => [
+                'title' => 'Budgie | Abonnements',
+                'template' => 'pages/subscriptions.php',
+            ],
+            'profile' => [
+                'title' => 'Budgie | Compte',
+                'template' => 'pages/profile.php',
+            ],
             'dashboard' => [
                 'title' => 'Budgie | Tableau de bord',
                 'template' => 'pages/dashboard.php',
@@ -182,6 +228,18 @@ final class App
                 'title' => 'Budgie | Prévisions',
                 'template' => 'pages/previsions.php',
             ],
+            'admin' => [
+                'title' => 'Budgie | Administration',
+                'template' => 'pages/admin.php',
+            ],
+            'exception-create' => [
+                'title' => 'Budgie | Nouvelle exception',
+                'template' => 'pages/exceptions/create.php',
+            ],
+            'exception' => [
+                'title' => 'Budgie | Exception',
+                'template' => 'pages/exceptions/detail.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -191,9 +249,19 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions']) && !$this->isAuthenticated()) {
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin', 'exception', 'exception-create']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
+        }
+
+        if ($page === 'admin' && !($this->currentUser()['is_admin'] ?? false)) {
+            http_response_code(403);
+            echo $this->renderLayout(
+                'Budgie | Accès refusé',
+                '<section class="section"><p class="notice notice-error">Accès refusé. Vous n\'êtes pas administrateur.</p></section>',
+                $this->currentUser()
+            );
+            return;
         }
 
         if ($page === 'account' && !isset($_GET['id'])) {
@@ -217,26 +285,32 @@ final class App
             'error' => $_SESSION['flash_error'] ?? null,
             'success' => $_SESSION['flash_success'] ?? null,
         ];
-if ($page === 'dashboard') {
-    $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-    $totalExpenses = 0;
-    $totalIncomes  = 0;
-    foreach ($accounts as $acc) {
-        $totalExpenses += count($this->expenseService->findByAccount($acc['id']));
-        $totalIncomes  += count($this->incomeService->findByAccount($acc['id']));
-    }
-    $data['nb_accounts'] = count($accounts);
-    $data['nb_expenses'] = $totalExpenses;
-    $data['nb_incomes']  = $totalIncomes;
-} else
-        if ($page === 'accounts') {
-            $data['accounts'] = $this->accountService->findByUser($this->currentUser()['email']);
+
+        if ($this->isAuthenticated()) {
+            $data['user'] = $this->userService->findByEmail($this->currentUser()['email']) ?? $this->currentUser();
+        }
+
+        if ($page === 'dashboard') {
+            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
+            $accounts = $this->withComputedBalances($accounts);
+            $totalExpenses = 0;
+            $totalIncomes  = 0;
+            foreach ($accounts as $acc) {
+                $totalExpenses += count($this->expenseService->findByAccount($acc['id']));
+                $totalIncomes  += count($this->incomeService->findByAccount($acc['id']));
+            }
+            $data['nb_accounts'] = count($accounts);
+            $data['nb_expenses'] = $totalExpenses;
+            $data['nb_incomes']  = $totalIncomes;
+        } elseif ($page === 'accounts') {
+            $data['accounts'] = $this->withComputedBalances($this->accountService->findByUser($this->currentUser()['email']));
         } elseif ($page === 'account' && isset($_GET['id'])) {
             $account = $this->accountService->findById((int) $_GET['id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
+            $account = $this->withComputedBalance($account);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
             $expenses = $this->expenseService->findByAccount($account['id']);
             if ($searchQuery !== '') {
@@ -246,17 +320,22 @@ if ($page === 'dashboard') {
                 }));
             }
 
-            $data['account'] = $account;
-            $data['expenses'] = $expenses;
-            $data['incomes'] = $this->incomeService->findByAccount($account['id']);
-            $data['search_query'] = $searchQuery;
-        } elseif ($page === 'expenses') {
-            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-            $allExpenses = [];
-            foreach ($accounts as $account) {
-                $allExpenses = array_merge($allExpenses, $this->expenseService->findByAccount($account['id']));
+            $searchQueryIncome = trim((string) ($_GET['qr'] ?? ''));
+            $incomes = $this->incomeService->findByAccount($account['id']);
+            if ($searchQueryIncome !== '') {
+                $incomes = array_values(array_filter($incomes, function (array $income) use ($searchQueryIncome) {
+                    return stripos((string) $income['short_name'], $searchQueryIncome) !== false
+                        || stripos((string) $income['description'], $searchQueryIncome) !== false;
+                }));
             }
 
+            $data['account'] = $account;
+            $data['expenses'] = $expenses;
+            $data['incomes'] = $incomes;
+            $data['search_query'] = $searchQuery;
+            $data['search_query_income'] = $searchQueryIncome;
+        } elseif ($page === 'expenses') {
+            $allExpenses = $this->expenseService->findByUser($this->currentUser()['email']);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
             if ($searchQuery !== '') {
                 $allExpenses = array_values(array_filter($allExpenses, function (array $expense) use ($searchQuery) {
@@ -264,7 +343,6 @@ if ($page === 'dashboard') {
                         || stripos((string) $expense['description'], $searchQuery) !== false;
                 }));
             }
-
             $data['expenses'] = $allExpenses;
             $data['search_query'] = $searchQuery;
         } elseif ($page === 'expense' && isset($_GET['id'])) {
@@ -273,33 +351,40 @@ if ($page === 'dashboard') {
                 http_response_code(404);
                 return;
             }
+            $account = $this->accountService->findById((int) $expense['account_id']);
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+                http_response_code(404);
+                return;
+            }
             $data['expense'] = $expense;
-            $data['account'] = $this->accountService->findById($expense['account_id']);
+            $data['account'] = $account;
+            $data['exceptions'] = $this->exceptionService->findByEntity('expense', (int) $expense['id']);
         } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
             $data['account'] = $account;
         } elseif ($page === 'incomes') {
-            $accounts = $this->accountService->findByUser($this->currentUser()['email']);
-            $allIncomes = [];
-            foreach ($accounts as $account) {
-                $allIncomes = array_merge($allIncomes, $this->incomeService->findByAccount($account['id']));
-            }
-            $data['incomes'] = $allIncomes;
+            $data['incomes'] = $this->incomeService->findByUser($this->currentUser()['email']);
         } elseif ($page === 'income' && isset($_GET['id'])) {
             $income = $this->incomeService->findById((int) $_GET['id']);
             if (!$income) {
                 http_response_code(404);
                 return;
             }
+            $account = $this->accountService->findById((int) $income['account_id']);
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+                http_response_code(404);
+                return;
+            }
             $data['income'] = $income;
-            $data['account'] = $this->accountService->findById($income['account_id']);
+            $data['account'] = $account;
+            $data['exceptions'] = $this->exceptionService->findByEntity('income', (int) $income['id']);
         } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
-            if (!$account) {
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
                 http_response_code(404);
                 return;
             }
@@ -323,7 +408,6 @@ if ($page === 'dashboard') {
             foreach ($accounts as $account) {
                 $forecast = $this->buildMonthlyForecast($account, $selectedMonth);
                 $forecastRows[] = $forecast;
-
                 $totals['start_balance'] += $forecast['start_balance'];
                 $totals['incomes'] += $forecast['incomes'];
                 $totals['expenses'] += $forecast['expenses'];
@@ -334,11 +418,42 @@ if ($page === 'dashboard') {
             $data['selected_month'] = $selectedMonth;
             $data['forecast_rows'] = $forecastRows;
             $data['totals'] = $totals;
+        } elseif ($page === 'exception-create') {
+            $type     = trim((string) ($_GET['type'] ?? 'expense'));
+            $entityId = (int) ($_GET['entity_id'] ?? 0);
+            $data['entity_type'] = $type;
+            $data['entity_id']   = $entityId;
+        } elseif ($page === 'exception' && isset($_GET['id'])) {
+            $exception = $this->exceptionService->findById((int) $_GET['id']);
+            if (!$exception) {
+                http_response_code(404);
+                return;
+            }
+            $data['exception'] = $exception;
+        } elseif ($page === 'admin') {
+            $allUsers = $this->db->fetchAll(
+                'SELECT u.*, (SELECT COUNT(*) FROM accounts a WHERE a.user_email = u.email) AS nb_accounts
+                FROM users u ORDER BY u.created_at DESC'
+            );
+            $stats = [
+                'total_users'    => count($allUsers),
+                'premium_users'  => count(array_filter($allUsers, fn($u) => ($u['plan'] ?? 'free') === 'paid')),
+                'total_accounts' => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM accounts')['n'] ?? 0),
+                'total_expenses' => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM expenses')['n'] ?? 0),
+                'total_incomes'  => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM incomes')['n'] ?? 0),
+            ];
+            $data['users']               = $allUsers;
+            $data['stats']               = $stats;
+            $data['current_admin_email'] = $this->currentUser()['email'];
         }
+
+        $oldInputKey = $this->oldInputKey($page);
+        $data['old'] = $_SESSION['old_input'][$oldInputKey] ?? [];
 
         $content = $this->render($route['template'], $data);
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
+        unset($_SESSION['old_input'][$oldInputKey]);
 
         echo $this->renderLayout($route['title'], $content, $data['user']);
     }
@@ -349,8 +464,10 @@ if ($page === 'dashboard') {
         $fullName = ValidationHelper::cleanName($_POST['full_name'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+        $plan = 'free';
 
-        // Validation
+        $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
+
         if (empty($email) || empty($fullName) || empty($password)) {
             $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
             header('Location: /?page=signup');
@@ -382,15 +499,13 @@ if ($page === 'dashboard') {
         }
 
         try {
-            // Générer un token d'activation
             $verificationToken = bin2hex(random_bytes(32));
             $tokenExpiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
 
-            // Créer l'utilisateur avec le token
-            $this->userService->create($email, $fullName, $password, $verificationToken, $tokenExpiry);
+            $this->userService->create($email, $fullName, $password, $verificationToken, $tokenExpiry, $plan);
 
-            // Envoyer l'email d'activation
             EmailHelper::sendActivation($email, explode(' ', $fullName)[0], $verificationToken);
+            unset($_SESSION['old_input']['signup']);
 
             $_SESSION['flash_success'] = 'Inscription réussie. Veuillez confirmer votre adresse email en cliquant sur le lien reçu.';
             header('Location: /?page=login');
@@ -413,6 +528,10 @@ if ($page === 'dashboard') {
             $_SESSION['user'] = [
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
+                'plan' => $user['plan'] ?? 'free',
+                'is_admin' => (bool) ($user['is_admin'] ?? false),
+                'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
+                'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
             ];
             $_SESSION['flash_success'] = 'Connexion réussie.';
             header('Location: /?page=dashboard');
@@ -420,6 +539,7 @@ if ($page === 'dashboard') {
         }
 
         $_SESSION['flash_error'] = 'Identifiants invalides.';
+        $this->flashOldInput('login', ['email' => $email]);
         header('Location: /?page=login');
         exit;
     }
@@ -429,6 +549,188 @@ if ($page === 'dashboard') {
         unset($_SESSION['user']);
         $_SESSION['flash_success'] = 'Déconnexion réussie.';
         header('Location: /?page=login');
+        exit;
+    }
+
+    private function handleProfilePost(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $action = $_POST['action'] ?? '';
+        if ($action === 'update-name') {
+            $fullName = ValidationHelper::cleanName($_POST['full_name'] ?? '');
+            if ($fullName === '') {
+                $_SESSION['flash_error'] = 'Le nom est obligatoire.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $storedUser = $this->userService->findByEmail($this->currentUser()['email']);
+            if ($storedUser === null) {
+                $_SESSION['flash_error'] = 'Utilisateur introuvable.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $this->userService->update((int) $storedUser['id'], $fullName);
+            $_SESSION['user']['full_name'] = $fullName;
+            $_SESSION['flash_success'] = 'Nom mis à jour.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        if ($action === 'update-password') {
+            $currentPassword = (string) ($_POST['current_password'] ?? '');
+            $password = (string) ($_POST['password'] ?? '');
+            $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
+
+            if (!$this->userService->verifyPassword($this->currentUser()['email'], $currentPassword)) {
+                $_SESSION['flash_error'] = 'Mot de passe actuel incorrect.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            if (!ValidationHelper::validatePassword($password)) {
+                $_SESSION['flash_error'] = 'Le nouveau mot de passe doit avoir au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre et 1 caractère spécial.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            if ($password !== $passwordConfirm) {
+                $_SESSION['flash_error'] = 'Les mots de passe ne correspondent pas.';
+                header('Location: /?page=profile');
+                exit;
+            }
+
+            $this->userService->updatePasswordByEmail($this->currentUser()['email'], $password);
+            $_SESSION['flash_success'] = 'Mot de passe mis à jour.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        $_SESSION['flash_error'] = 'Action inconnue.';
+        header('Location: /?page=profile');
+        exit;
+    }
+
+    private function handleSubscriptionCheckout(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        if (!$this->isFreeUser()) {
+            $_SESSION['flash_success'] = 'Votre compte est déjà premium.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        $priceId = getenv('STRIPE_PREMIUM_PRICE_ID') ?: '';
+        $appUrl = rtrim(getenv('APP_URL') ?: $this->baseUrl(), '/');
+
+        if ($secretKey === '' || $priceId === '') {
+            $_SESSION['flash_error'] = 'Stripe n\'est pas configuré. Renseignez STRIPE_SECRET_KEY et STRIPE_PREMIUM_PRICE_ID.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $session = $this->createStripeCheckoutSession($secretKey, [
+            'mode' => 'subscription',
+            'line_items[0][price]' => $priceId,
+            'line_items[0][quantity]' => '1',
+            'customer_email' => $this->currentUser()['email'],
+            'client_reference_id' => $this->currentUser()['email'],
+            'success_url' => $appUrl . '/?page=subscription-success&session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => $appUrl . '/?page=subscriptions',
+        ]);
+
+        if (!isset($session['url'])) {
+            $_SESSION['flash_error'] = $session['error'] ?? 'Impossible de créer la session Stripe.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        header('Location: ' . $session['url']);
+        exit;
+    }
+
+    private function handleSubscriptionSuccess(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        $sessionId = trim((string) ($_GET['session_id'] ?? ''));
+
+        if ($secretKey === '' || $sessionId === '') {
+            $_SESSION['flash_error'] = 'Validation Stripe impossible.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $session = $this->retrieveStripeCheckoutSession($secretKey, $sessionId);
+        if (($session['payment_status'] ?? '') !== 'paid' || ($session['client_reference_id'] ?? '') !== $this->currentUser()['email']) {
+            $_SESSION['flash_error'] = 'Paiement Stripe non confirmé.';
+            header('Location: /?page=subscriptions');
+            exit;
+        }
+
+        $this->userService->updatePlan($this->currentUser()['email'], 'paid');
+        $this->userService->updateStripeSubscription(
+            $this->currentUser()['email'],
+            isset($session['customer']) ? (string) $session['customer'] : null,
+            isset($session['subscription']) ? (string) $session['subscription'] : null
+        );
+        $_SESSION['user']['plan'] = 'paid';
+        $_SESSION['user']['stripe_customer_id'] = $session['customer'] ?? null;
+        $_SESSION['user']['stripe_subscription_id'] = $session['subscription'] ?? null;
+        $_SESSION['flash_success'] = 'Votre compte est maintenant premium.';
+        header('Location: /?page=profile');
+        exit;
+    }
+
+    private function handleSubscriptionCancel(): void
+    {
+        if (!$this->isAuthenticated()) {
+            $_SESSION['flash_error'] = 'Vous devez être connecté.';
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $storedUser = $this->userService->findByEmail($this->currentUser()['email']);
+        if (($storedUser['plan'] ?? 'free') !== 'paid') {
+            $_SESSION['flash_success'] = 'Votre compte est déjà en formule gratuite.';
+            header('Location: /?page=profile');
+            exit;
+        }
+
+        $subscriptionId = (string) ($storedUser['stripe_subscription_id'] ?? '');
+        $secretKey = getenv('STRIPE_SECRET_KEY') ?: '';
+        if ($subscriptionId !== '' && $secretKey !== '') {
+            $response = $this->cancelStripeSubscription($secretKey, $subscriptionId);
+            if (isset($response['error'])) {
+                $_SESSION['flash_error'] = $response['error'];
+                header('Location: /?page=profile');
+                exit;
+            }
+        }
+
+        $this->userService->updatePlan($this->currentUser()['email'], 'free');
+        $this->userService->clearStripeSubscription($this->currentUser()['email']);
+        $_SESSION['user']['plan'] = 'free';
+        $_SESSION['user']['stripe_subscription_id'] = null;
+        $_SESSION['flash_success'] = 'Abonnement premium résilié. Votre compte est repassé en gratuit.';
+        header('Location: /?page=profile');
         exit;
     }
 
@@ -456,6 +758,7 @@ if ($page === 'dashboard') {
     private function handleForgotPasswordPost(): void
     {
         $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
+        $this->flashOldInput('forgot-password', ['email' => $email]);
 
         if (empty($email)) {
             $_SESSION['flash_error'] = 'Veuillez entrer votre adresse email.';
@@ -469,7 +772,6 @@ if ($page === 'dashboard') {
             EmailHelper::sendPasswordReset($email, explode(' ', $user['full_name'])[0], $result['reset_token']);
         }
 
-        // Toujours afficher un message de succès pour des raisons de sécurité
         $_SESSION['flash_success'] = 'Si cette adresse email existe, un lien de réinitialisation a été envoyé.';
         header('Location: /?page=login');
         exit;
@@ -510,96 +812,132 @@ if ($page === 'dashboard') {
         exit;
     }
 
-    private function seedDemoUser(): void
+    private function handleExceptionCreate(): void
     {
-        if (!$this->userService->existsByEmail('demo@budgie.local')) {
-            try {
-                // Créer un utilisateur démo activé directement (sans token)
-                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
-                
-                // Activer le compte démo en supprimant le token d'activation
-                $user = $this->userService->findByEmail('demo@budgie.local');
-                if ($user && !$user['is_active']) {
-                    $this->db->exec(
-                        'UPDATE users SET is_active = true, verification_token = NULL, token_expiry = NULL WHERE id = ?',
-                        [$user['id']]
-                    );
-                }
-            } catch (Exception $e) {
-                // Silently fail if demo user already exists
+        $type        = trim((string) ($_POST['entity_type'] ?? 'expense'));
+        $entityId    = (int) ($_POST['entity_id'] ?? 0);
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception-create&type=' . $type . '&entity_id=' . $entityId);
+            exit;
+        }
+
+        $this->exceptionService->create($type, $entityId, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception créée avec succès.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
+    }
+
+    private function handleExceptionUpdate(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) {
+            http_response_code(404);
+            exit;
+        }
+
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception&id=' . $id);
+            exit;
+        }
+
+        $this->exceptionService->update($id, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception mise à jour.';
+        header('Location: /?page=exception&id=' . $id);
+        exit;
+    }
+
+    private function handleExceptionDelete(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) {
+            http_response_code(404);
+            exit;
+        }
+
+        $type     = $exception['entity_type'];
+        $entityId = $exception['entity_id'];
+        $this->exceptionService->delete($id);
+        $_SESSION['flash_success'] = 'Exception supprimée.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
+    }
+
+    private function handleAdminPost(): void
+    {
+        if (!$this->isAuthenticated() || !($this->currentUser()['is_admin'] ?? false)) {
+            http_response_code(403);
+            exit;
+        }
+
+        $action      = trim((string) ($_POST['action'] ?? ''));
+        $targetEmail = trim((string) ($_POST['target_email'] ?? ''));
+
+        if ($targetEmail === '') {
+            $_SESSION['flash_error'] = 'Email cible manquant.';
+            header('Location: /?page=admin');
+            exit;
+        }
+
+        $targetUser = $this->userService->findByEmail($targetEmail);
+        if (!$targetUser) {
+            $_SESSION['flash_error'] = 'Utilisateur introuvable.';
+            header('Location: /?page=admin');
+            exit;
+        }
+
+        if ($action === 'set-plan') {
+            $plan = in_array($_POST['plan'] ?? '', ['free', 'paid'], true) ? $_POST['plan'] : 'free';
+            $this->userService->updatePlan($targetEmail, $plan);
+            $_SESSION['flash_success'] = 'Plan mis à jour.';
+        } elseif ($action === 'toggle-active') {
+            if ($targetEmail === $this->currentUser()['email']) {
+                $_SESSION['flash_error'] = 'Vous ne pouvez pas modifier votre propre statut.';
+                header('Location: /?page=admin');
+                exit;
             }
-        }
-    }
-
-    private function seedDemoExpenses(): void
-    {
-        $user = $this->userService->findByEmail('demo@budgie.local');
-        if (!$user) {
-            return;
-        }
-
-        $accounts = $this->accountService->findByUser($user['email']);
-        if (empty($accounts)) {
-            $this->accountService->create($user['email'], 'Compte courant', 'Compte principal pour dépenses journalières', 0.0, 0.0);
-            $this->accountService->create($user['email'], 'Épargne', 'Compte d\'épargne pour objectif futur', 0.0, 0.0);
-            $accounts = $this->accountService->findByUser($user['email']);
-        }
-
-        $totalExpenses = 0;
-        foreach ($accounts as $account) {
-            $totalExpenses += count($this->expenseService->findByAccount((int) $account['id']));
-        }
-
-        if ($totalExpenses > 0) {
-            return;
-        }
-
-        $sampleExpenses = [
-            ['account' => 'Compte courant', 'short_name' => 'Courses supermarché', 'description' => 'Achats alimentaires et ménagers', 'amount' => 120.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-10', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Facture électricité', 'description' => 'Paiement de la facture mensuelle d\'électricité', 'amount' => 78.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Abonnement internet', 'description' => 'Frais mensuels internet et télévision', 'amount' => 29.99, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Loyer appartement', 'description' => 'Paiement du loyer mensuel', 'amount' => 850.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Café', 'description' => 'Achat d\'un café et viennoiserie', 'amount' => 4.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-15', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Facture mobile', 'description' => 'Abonnement téléphonique mensuel', 'amount' => 19.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Cadeau anniversaire', 'description' => 'Achat cadeau pour un anniversaire', 'amount' => 60.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-20', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Abonnement salle', 'description' => 'Frais mensuels de la salle de sport', 'amount' => 35.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Assurance habitation', 'description' => 'Paiement mensuel de l\'assurance maison', 'amount' => 12.50, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Compte courant', 'short_name' => 'Pass transport', 'description' => 'Pass mensuel pour les transports publics', 'amount' => 45.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
-            ['account' => 'Épargne', 'short_name' => 'Transfert épargne', 'description' => 'Transfert occasionnel vers le compte épargne', 'amount' => 150.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-05', 'end_date' => null],
-            ['account' => 'Épargne', 'short_name' => 'Versement objectif vacances', 'description' => 'Mise de côté pour les vacances', 'amount' => 200.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-12', 'end_date' => null],
-            ['account' => 'Épargne', 'short_name' => 'Cadeau noël', 'description' => 'Épargne pour cadeau de fin d\'année', 'amount' => 100.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-18', 'end_date' => null],
-        ];
-
-        $accountMap = [];
-        foreach ($accounts as $account) {
-            $accountMap[$account['short_name']] = (int) $account['id'];
-        }
-
-        foreach ($sampleExpenses as $expense) {
-            if (!isset($accountMap[$expense['account']])) {
-                continue;
+            $newState = $targetUser['is_active'] ? 0 : 1;
+            $this->db->exec('UPDATE users SET is_active = ? WHERE email = ?', [$newState, $targetEmail]);
+            $_SESSION['flash_success'] = 'Statut mis à jour.';
+        } elseif ($action === 'delete-user') {
+            if ($targetEmail === $this->currentUser()['email']) {
+                $_SESSION['flash_error'] = 'Vous ne pouvez pas supprimer votre propre compte.';
+                header('Location: /?page=admin');
+                exit;
             }
-            $this->expenseService->create(
-                $accountMap[$expense['account']],
-                $expense['short_name'],
-                $expense['description'],
-                $expense['amount'],
-                $expense['frequency'],
-                $expense['frequency_months'],
-                $expense['start_date'],
-                $expense['end_date']
-            );
+            $accounts = $this->accountService->findByUser($targetEmail);
+            foreach ($accounts as $acc) {
+                $this->db->exec('DELETE FROM expenses WHERE account_id = ?', [$acc['id']]);
+                $this->db->exec('DELETE FROM incomes WHERE account_id = ?', [$acc['id']]);
+            }
+            $this->db->exec('DELETE FROM accounts WHERE user_email = ?', [$targetEmail]);
+            $this->db->exec('DELETE FROM users WHERE email = ?', [$targetEmail]);
+            $_SESSION['flash_success'] = 'Utilisateur supprimé.';
+        } else {
+            $_SESSION['flash_error'] = 'Action inconnue.';
         }
-    }
 
-    private function isAuthenticated(): bool
-    {
-        return isset($_SESSION['user']);
-    }
-
-    private function currentUser(): ?array
-    {
-        return $_SESSION['user'] ?? null;
+        header('Location: /?page=admin');
+        exit;
     }
 
     private function handleAccountCreate(): void
@@ -622,6 +960,12 @@ if ($page === 'dashboard') {
         }
 
         try {
+            if ($this->isFreeUser() && $this->accountService->countByUser($this->currentUser()['email']) >= self::FREE_ACCOUNT_LIMIT) {
+                $_SESSION['flash_error'] = 'La formule gratuite permet de créer 2 comptes bancaires maximum.';
+                header('Location: /?page=accounts');
+                exit;
+            }
+
             $this->accountService->create(
                 $this->currentUser()['email'],
                 $shortName,
@@ -702,6 +1046,9 @@ if ($page === 'dashboard') {
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
 
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('expense-create:' . $accountId, $oldInput);
+
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
             $_SESSION['flash_error'] = 'Compte introuvable ou accès non autorisé.';
@@ -711,12 +1058,27 @@ if ($page === 'dashboard') {
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=expense-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette fréquence.';
+            header('Location: /?page=expense-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($this->isFreeUser() && $this->expenseService->countByAccount($accountId) >= self::FREE_EXPENSE_LIMIT_PER_ACCOUNT) {
+            $_SESSION['flash_error'] = 'La formule gratuite permet de créer 7 dépenses maximum par compte.';
             header('Location: /?page=account&id=' . $accountId);
             exit;
         }
 
         try {
             $this->expenseService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            unset($_SESSION['old_input']['expense-create:' . $accountId]);
             $_SESSION['flash_success'] = 'Dépense créée avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création de la dépense.';
@@ -748,13 +1110,25 @@ if ($page === 'dashboard') {
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
 
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('expense:' . $id, $oldInput);
+
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
             header('Location: /?page=expense&id=' . $id);
             exit;
         }
 
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette fréquence.';
+            header('Location: /?page=expense&id=' . $id);
+            exit;
+        }
+
         if ($this->expenseService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
+            unset($_SESSION['old_input']['expense:' . $id]);
             $_SESSION['flash_success'] = 'Dépense mise à jour.';
         } else {
             $_SESSION['flash_error'] = 'Erreur lors de la mise à jour.';
@@ -805,6 +1179,9 @@ if ($page === 'dashboard') {
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
 
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('income-create:' . $accountId, $oldInput);
+
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
             $_SESSION['flash_error'] = 'Compte introuvable ou accès non autorisé.';
@@ -814,12 +1191,27 @@ if ($page === 'dashboard') {
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=income-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette fréquence.';
+            header('Location: /?page=income-create&account_id=' . $accountId);
+            exit;
+        }
+
+        if ($this->isFreeUser() && $this->incomeService->countByAccount($accountId) >= self::FREE_INCOME_LIMIT_PER_ACCOUNT) {
+            $_SESSION['flash_error'] = 'La formule gratuite permet de créer 2 revenus maximum par compte.';
             header('Location: /?page=account&id=' . $accountId);
             exit;
         }
 
         try {
             $this->incomeService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+            unset($_SESSION['old_input']['income-create:' . $accountId]);
             $_SESSION['flash_success'] = 'Revenu créé avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création du revenu.';
@@ -851,13 +1243,25 @@ if ($page === 'dashboard') {
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
 
+        $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
+        $this->flashOldInput('income:' . $id, $oldInput);
+
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
             header('Location: /?page=income&id=' . $id);
             exit;
         }
 
+        if ($frequency !== 'periodic') {
+            $frequencyMonths = null;
+        } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
+            $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette fréquence.';
+            header('Location: /?page=income&id=' . $id);
+            exit;
+        }
+
         if ($this->incomeService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
+            unset($_SESSION['old_input']['income:' . $id]);
             $_SESSION['flash_success'] = 'Revenu mis à jour.';
         } else {
             $_SESSION['flash_error'] = 'Erreur lors de la mise à jour.';
@@ -891,6 +1295,220 @@ if ($page === 'dashboard') {
         exit;
     }
 
+    private function flashOldInput(string $key, array $input): void
+    {
+        $_SESSION['old_input'][$key] = $input;
+    }
+
+    private function oldInputKey(string $page): string
+    {
+        if (in_array($page, ['expense', 'income', 'account'], true) && isset($_GET['id'])) {
+            return $page . ':' . (int) $_GET['id'];
+        }
+
+        if (in_array($page, ['expense-create', 'income-create'], true) && isset($_GET['account_id'])) {
+            return $page . ':' . (int) $_GET['account_id'];
+        }
+
+        return $page;
+    }
+
+    private function seedDemoUser(): void
+    {
+        if (!$this->userService->existsByEmail('demo@budgie.local')) {
+            try {
+                $this->userService->create('demo@budgie.local', 'Utilisateur démo', 'BudgieDemo2026!');
+
+                $user = $this->userService->findByEmail('demo@budgie.local');
+                if ($user && !$user['is_active']) {
+                    $this->db->exec(
+                        'UPDATE users SET is_active = true, verification_token = NULL, token_expiry = NULL WHERE id = ?',
+                        [$user['id']]
+                    );
+                }
+            } catch (Exception $e) {
+                // Silently fail if demo user already exists
+            }
+        }
+
+        $this->db->exec('UPDATE users SET plan = ? WHERE email = ?', ['free', 'demo@budgie.local']);
+    }
+
+    private function seedDemoExpenses(): void
+    {
+        $user = $this->userService->findByEmail('demo@budgie.local');
+        if (!$user) {
+            return;
+        }
+
+        $accounts = $this->accountService->findByUser($user['email']);
+        if (empty($accounts)) {
+            $this->accountService->create($user['email'], 'Compte courant', 'Compte principal pour dépenses journalières', 0.0, 0.0);
+            $this->accountService->create($user['email'], 'Épargne', 'Compte d\'épargne pour objectif futur', 0.0, 0.0);
+            $accounts = $this->accountService->findByUser($user['email']);
+        }
+
+        $totalExpenses = 0;
+        foreach ($accounts as $account) {
+            $totalExpenses += count($this->expenseService->findByAccount((int) $account['id']));
+        }
+
+        if ($totalExpenses > 0) {
+            return;
+        }
+
+        $sampleExpenses = [
+            ['account' => 'Compte courant', 'short_name' => 'Courses supermarché', 'description' => 'Achats alimentaires et ménagers', 'amount' => 120.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-10', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Facture électricité', 'description' => 'Paiement de la facture mensuelle d\'électricité', 'amount' => 78.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Abonnement internet', 'description' => 'Frais mensuels internet et télévision', 'amount' => 29.99, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Loyer appartement', 'description' => 'Paiement du loyer mensuel', 'amount' => 850.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Café', 'description' => 'Achat d\'un café et viennoiserie', 'amount' => 4.50, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-15', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Facture mobile', 'description' => 'Abonnement téléphonique mensuel', 'amount' => 19.90, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Cadeau anniversaire', 'description' => 'Achat cadeau pour un anniversaire', 'amount' => 60.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-20', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Abonnement salle', 'description' => 'Frais mensuels de la salle de sport', 'amount' => 35.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Assurance habitation', 'description' => 'Paiement mensuel de l\'assurance maison', 'amount' => 12.50, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Compte courant', 'short_name' => 'Pass transport', 'description' => 'Pass mensuel pour les transports publics', 'amount' => 45.00, 'frequency' => 'mensuel', 'frequency_months' => null, 'start_date' => '2026-05-01', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Transfert épargne', 'description' => 'Transfert occasionnel vers le compte épargne', 'amount' => 150.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-05', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Versement objectif vacances', 'description' => 'Mise de côté pour les vacances', 'amount' => 200.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-12', 'end_date' => null],
+            ['account' => 'Épargne', 'short_name' => 'Cadeau noël', 'description' => 'Épargne pour cadeau de fin d\'année', 'amount' => 100.00, 'frequency' => 'ponctuel', 'frequency_months' => null, 'start_date' => '2026-05-18', 'end_date' => null],
+        ];
+
+        $accountMap = [];
+        foreach ($accounts as $account) {
+            $accountMap[$account['short_name']] = (int) $account['id'];
+        }
+
+        foreach ($sampleExpenses as $expense) {
+            if (!isset($accountMap[$expense['account']])) {
+                continue;
+            }
+            $this->expenseService->create(
+                $accountMap[$expense['account']],
+                $expense['short_name'],
+                $expense['description'],
+                $expense['amount'],
+                $expense['frequency'],
+                $expense['frequency_months'],
+                $expense['start_date'],
+                $expense['end_date']
+            );
+        }
+    }
+
+    private function isAuthenticated(): bool
+    {
+        return isset($_SESSION['user']);
+    }
+
+    private function currentUser(): ?array
+    {
+        return $_SESSION['user'] ?? null;
+    }
+
+    private function isFreeUser(): bool
+    {
+        $user = $this->currentUser();
+        if ($user === null) {
+            return true;
+        }
+
+        if (isset($user['plan'])) {
+            return $user['plan'] !== 'paid';
+        }
+
+        $storedUser = $this->userService->findByEmail((string) $user['email']);
+
+        return ($storedUser['plan'] ?? 'free') !== 'paid';
+    }
+
+    private function createStripeCheckoutSession(string $secretKey, array $params): array
+    {
+        return $this->stripeRequest($secretKey, 'POST', 'https://api.stripe.com/v1/checkout/sessions', $params);
+    }
+
+    private function retrieveStripeCheckoutSession(string $secretKey, string $sessionId): array
+    {
+        return $this->stripeRequest($secretKey, 'GET', 'https://api.stripe.com/v1/checkout/sessions/' . rawurlencode($sessionId));
+    }
+
+    private function cancelStripeSubscription(string $secretKey, string $subscriptionId): array
+    {
+        return $this->stripeRequest($secretKey, 'DELETE', 'https://api.stripe.com/v1/subscriptions/' . rawurlencode($subscriptionId));
+    }
+
+    private function stripeRequest(string $secretKey, string $method, string $url, array $params = []): array
+    {
+        $options = [
+            'http' => [
+                'method' => $method,
+                'header' => "Authorization: Bearer {$secretKey}\r\n",
+                'ignore_errors' => true,
+            ],
+        ];
+
+        if ($method === 'POST') {
+            $options['http']['header'] .= "Content-Type: application/x-www-form-urlencoded\r\n";
+            $options['http']['content'] = http_build_query($params);
+        }
+
+        $response = file_get_contents($url, false, stream_context_create($options));
+        if ($response === false) {
+            return ['error' => 'Stripe ne répond pas.'];
+        }
+
+        $decoded = json_decode($response, true);
+        if (!is_array($decoded)) {
+            return ['error' => 'Réponse Stripe invalide.'];
+        }
+
+        if (isset($decoded['error']['message'])) {
+            return ['error' => $decoded['error']['message']];
+        }
+
+        return $decoded;
+    }
+
+    private function baseUrl(): string
+    {
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost:8080';
+
+        return $scheme . '://' . $host;
+    }
+
+    private function withComputedBalances(array $accounts): array
+    {
+        return array_map(fn (array $account): array => $this->withComputedBalance($account), $accounts);
+    }
+
+    private function withComputedBalance(array $account): array
+    {
+        $account['initial_balance'] = (float) ($account['balance'] ?? 0);
+        $account['balance'] = $this->computeCurrentBalance($account);
+
+        return $account;
+    }
+
+    private function computeCurrentBalance(array $account): float
+    {
+        return $this->computeBalanceUntil($account, new DateTimeImmutable('today'));
+    }
+
+    private function computeBalanceUntil(array $account, DateTimeImmutable $cutoffDate): float
+    {
+        $balance = (float) ($account['balance'] ?? 0);
+
+        foreach ($this->incomeService->findByAccount((int) $account['id']) as $income) {
+            $balance += $this->amountUntilDate($income, $cutoffDate);
+        }
+
+        foreach ($this->expenseService->findByAccount((int) $account['id']) as $expense) {
+            $balance -= $this->amountUntilDate($expense, $cutoffDate);
+        }
+
+        return $balance;
+    }
+
     private function buildMonthlyForecast(array $account, string $month): array
     {
         $incomes = $this->incomeService->findByAccount((int) $account['id']);
@@ -910,7 +1528,10 @@ if ($page === 'dashboard') {
             }
         }
 
-        $startBalance = (float) $account['balance'];
+        $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', $month . '-01');
+        $startBalance = $monthStart
+            ? $this->computeBalanceUntil($account, $monthStart->modify('-1 day'))
+            : (float) $account['balance'];
         $annualRate = ((float) $account['interest_rate']) / 100;
         $taxRate = ((float) $account['tax_rate']) / 100;
         $interest = $startBalance * ($annualRate / 12) * (1 - $taxRate);
@@ -966,7 +1587,7 @@ if ($page === 'dashboard') {
             return true;
         }
 
-        if ($frequency === 'periodic' || $frequency === 'periodique' || $frequency === 'periodique') {
+        if ($frequency === 'periodic' || $frequency === 'periodique') {
             $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
             if ($monthsInterval <= 0) {
                 $monthsInterval = 1;
@@ -980,6 +1601,75 @@ if ($page === 'dashboard') {
         }
 
         return true;
+    }
+
+    private function amountUntilDate(array $entry, DateTimeImmutable $cutoffDate): float
+    {
+        $startDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['start_date']);
+        if (!$startDate || $startDate > $cutoffDate) {
+            return 0.0;
+        }
+
+        $effectiveEndDate = $cutoffDate;
+        if (!empty($entry['end_date'])) {
+            $endDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['end_date']);
+            if ($endDate && $endDate < $effectiveEndDate) {
+                $effectiveEndDate = $endDate;
+            }
+        }
+
+        if ($effectiveEndDate < $startDate) {
+            return 0.0;
+        }
+
+        $amount = (float) $entry['amount'];
+        $frequency = strtolower(trim((string) ($entry['frequency'] ?? 'ponctuel')));
+
+        if ($frequency === 'ponctuel') {
+            return $amount;
+        }
+
+        if ($frequency === 'mensuel') {
+            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, 1);
+        }
+
+        if ($frequency === 'periodic' || $frequency === 'periodique') {
+            $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
+            if ($monthsInterval <= 0) {
+                $monthsInterval = 1;
+            }
+
+            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, $monthsInterval);
+        }
+
+        return $amount;
+    }
+
+    private function countMonthlyOccurrences(DateTimeImmutable $startDate, DateTimeImmutable $endDate, int $monthsInterval): int
+    {
+        $count = 0;
+        $startMonthIndex = ((int) $startDate->format('Y')) * 12 + ((int) $startDate->format('n'));
+        $endMonthIndex = ((int) $endDate->format('Y')) * 12 + ((int) $endDate->format('n'));
+        $startDay = (int) $startDate->format('j');
+
+        for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex += $monthsInterval) {
+            $year = intdiv($monthIndex - 1, 12);
+            $month = (($monthIndex - 1) % 12) + 1;
+            $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
+            if (!$monthStart) {
+                continue;
+            }
+
+            $lastDay = (int) $monthStart->modify('last day of this month')->format('j');
+            $occurrenceDay = min($startDay, $lastDay);
+            $occurrenceDate = $monthStart->setDate($year, $month, $occurrenceDay);
+
+            if ($occurrenceDate >= $startDate && $occurrenceDate <= $endDate) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     private function render(string $template, array $data = []): string

@@ -30,7 +30,7 @@
                             <dt>Montant</dt>
                             <dd class="balance"><?= number_format($exp['amount'], 2, ',', ' ') ?> €</dd>
                             <dt>Compte</dt>
-                            <dd><?= htmlspecialchars($exp['account_id'], ENT_QUOTES, 'UTF-8') ?></dd>
+                            <dd><?= htmlspecialchars($exp['account_short_name'] ?? (string) $exp['account_id'], ENT_QUOTES, 'UTF-8') ?></dd>
                         </dl>
                     </div>
                     <div class="card-footer">

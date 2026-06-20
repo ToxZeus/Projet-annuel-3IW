@@ -1,49 +1,41 @@
-<div class="container" style="max-width: 400px; margin-top: 50px;">
-    <h1>Réinitialiser votre mot de passe</h1>
+<?php $token = $_GET['token'] ?? ''; ?>
 
-    <?php 
-    $token = $_GET['token'] ?? '';
-    if (empty($token)): ?>
-        <div class="alert alert-danger">Token invalide.</div>
-        <p><a href="/?page=login">Retour à la connexion</a></p>
-    <?php else: ?>
+<section class="hero auth-card">
+    <p class="eyebrow">Réinitialisation</p>
+    <h1>Choisir un nouveau mot de passe.</h1>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger" role="alert">
-                <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if ($success): ?>
-            <div class="alert alert-success" role="alert">
-                <?php echo htmlspecialchars($success); ?>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" action="/?page=reset-password">
-            <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
-
-            <div class="form-group mb-3">
-                <label for="password">Nouveau mot de passe</label>
-                <input type="password" class="form-control" id="password" name="password" 
-                       placeholder="Min 8 car, 1 maj, 1 min, 1 chiffre, 1 spécial" required>
-                <small class="form-text text-muted">
-                    Au moins 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre et 1 caractère spécial (@$!%*?&)
-                </small>
-            </div>
-
-            <div class="form-group mb-3">
-                <label for="password_confirm">Confirmer le mot de passe</label>
-                <input type="password" class="form-control" id="password_confirm" name="password_confirm" 
-                       placeholder="Répétez le mot de passe" required>
-            </div>
-
-            <button type="submit" class="btn btn-primary w-100">Réinitialiser le mot de passe</button>
-        </form>
-
-        <p class="mt-3 text-center">
-            <a href="/?page=login">Retour à la connexion</a>
+    <?php if (empty($token)) : ?>
+        <p class="notice notice-error">Token invalide.</p>
+        <p class="hint"><a href="/?page=login" class="link">Retour à la connexion</a></p>
+    <?php else : ?>
+        <p class="lead">
+            Utilise un mot de passe sécurisé avec au moins 8 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial.
         </p>
 
+        <?php if (!empty($error)) : ?>
+            <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+
+        <?php if (!empty($success)) : ?>
+            <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
+        <?php endif; ?>
+
+        <form class="auth-form" method="post" action="/?page=reset-password">
+            <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+
+            <label>
+                Nouveau mot de passe
+                <input type="password" name="password" required autocomplete="new-password" placeholder="Budgie2026!">
+            </label>
+
+            <label>
+                Confirmer le mot de passe
+                <input type="password" name="password_confirm" required autocomplete="new-password" placeholder="Budgie2026!">
+            </label>
+
+            <button class="button" type="submit">Réinitialiser le mot de passe</button>
+        </form>
+
+        <p class="hint"><a href="/?page=login" class="link">Retour à la connexion</a></p>
     <?php endif; ?>
-</div>
+</section>
