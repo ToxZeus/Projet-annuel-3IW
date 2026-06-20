@@ -112,23 +112,33 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
             const form = select.closest('form');
             const monthsField = form?.querySelector('[data-frequency-months]');
             const monthsInput = monthsField?.querySelector('input[name="frequency_months"]');
+            const endDateField = form?.querySelector('[data-frequency-enddate]');
 
-            if (!monthsField || !monthsInput) {
-                return;
-            }
-
-            function updateFrequencyMonths() {
+            function updateFrequency() {
+                const isPonctuel = select.value === 'ponctuel';
                 const needsMonths = select.value === 'periodic';
-                monthsField.classList.toggle('hidden', !needsMonths);
-                monthsInput.required = needsMonths;
-                monthsInput.disabled = !needsMonths;
-                if (!needsMonths) {
-                    monthsInput.value = '';
+
+                if (monthsField && monthsInput) {
+                    monthsField.classList.toggle('hidden', !needsMonths);
+                    monthsInput.required = needsMonths;
+                    monthsInput.disabled = !needsMonths;
+                    if (!needsMonths) {
+                        monthsInput.value = '';
+                    }
+                }
+
+                if (endDateField) {
+                    endDateField.classList.toggle('hidden', isPonctuel);
+                    const endDateInput = endDateField.querySelector('input');
+                    if (endDateInput) {
+                        endDateInput.disabled = isPonctuel;
+                        if (isPonctuel) endDateInput.value = '';
+                    }
                 }
             }
 
-            select.addEventListener('change', updateFrequencyMonths);
-            updateFrequencyMonths();
+            select.addEventListener('change', updateFrequency);
+            updateFrequency();
         });
     });
     </script>

@@ -60,9 +60,9 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
                 <input type="date" name="start_date" value="<?= htmlspecialchars($old['startDate'] ?? $expense['start_date'], ENT_QUOTES, 'UTF-8') ?>">
             </label>
 
-            <label>
+            <label<?= $frequency === 'ponctuel' ? ' class="hidden"' : '' ?> data-frequency-enddate>
                 Date de fin
-                <input type="date" name="end_date" value="<?= htmlspecialchars($old['endDate'] ?? ($expense['end_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="date" name="end_date" value="<?= htmlspecialchars($old['endDate'] ?? ($expense['end_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"<?= $frequency === 'ponctuel' ? ' disabled' : '' ?>>
             </label>
 
             <button class="button" type="submit">Mettre à jour</button>
