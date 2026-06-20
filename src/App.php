@@ -952,6 +952,7 @@ final class App
         $description = trim((string) ($_POST['description'] ?? ''));
         $interestRate = (float) ($_POST['interest_rate'] ?? 0);
         $taxRate = (float) ($_POST['tax_rate'] ?? 0);
+        $initialBalance = (float) ($_POST['initial_balance'] ?? 0);
 
         if (empty($shortName) || empty($description)) {
             $_SESSION['flash_error'] = 'Tous les champs obligatoires doivent être remplis.';
@@ -971,7 +972,8 @@ final class App
                 $shortName,
                 $description,
                 $interestRate,
-                $taxRate
+                $taxRate,
+                $initialBalance
             );
             $_SESSION['flash_success'] = 'Compte créé avec succès.';
         } catch (Exception $e) {
@@ -994,6 +996,7 @@ final class App
         $description = trim((string) ($_POST['description'] ?? ''));
         $interestRate = (float) ($_POST['interest_rate'] ?? 0);
         $taxRate = (float) ($_POST['tax_rate'] ?? 0);
+        $initialBalance = (float) ($_POST['initial_balance'] ?? 0);
 
         if (empty($shortName) || empty($description)) {
             $_SESSION['flash_error'] = 'Tous les champs obligatoires doivent être remplis.';
@@ -1001,7 +1004,7 @@ final class App
             exit;
         }
 
-        if ($this->accountService->update($id, $shortName, $description, $interestRate, $taxRate)) {
+        if ($this->accountService->update($id, $shortName, $description, $interestRate, $taxRate, $initialBalance)) {
             $_SESSION['flash_success'] = 'Compte mis à jour avec succès.';
         } else {
             $_SESSION['flash_error'] = 'Erreur lors de la mise à jour du compte.';
