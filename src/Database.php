@@ -65,7 +65,13 @@ final class Database
         if (!in_array('stripe_subscription_id', $existingUserColumns, true)) {
             $pdo->exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT');
         }
+<<<<<<< HEAD
 
+=======
+        if (!in_array('is_admin', $existingUserColumns, true)) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0");
+        }
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,6 +116,24 @@ final class Database
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
         ');
+<<<<<<< HEAD
+=======
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS exceptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT \'\',
+                amount REAL NOT NULL,
+                frequency TEXT NOT NULL DEFAULT \'ponctuel\',
+                frequency_months INTEGER DEFAULT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT DEFAULT NULL
+            )
+        ');
+    
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
     }
 
     public function query(string $sql, array $params = []): PDOStatement

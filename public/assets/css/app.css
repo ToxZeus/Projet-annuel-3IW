@@ -169,8 +169,12 @@ h1 {
     font-weight: 700;
 }
 
+<<<<<<< HEAD
 .auth-form input,
 .auth-form select {
+=======
+.auth-form input {
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
     min-height: 48px;
     padding: 0 16px;
     border-radius: 14px;
@@ -379,7 +383,10 @@ h1 {
 }
 
 .detail-form input,
+<<<<<<< HEAD
 .detail-form select,
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 .detail-form textarea {
     min-height: 48px;
     padding: 12px 16px;
@@ -391,6 +398,7 @@ h1 {
     resize: vertical;
 }
 
+<<<<<<< HEAD
 .auth-form select,
 .detail-form select {
     appearance: none;
@@ -405,6 +413,8 @@ h1 {
     transition: opacity 0.18s ease;
 }
 
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 .danger-form {
     margin-top: 24px;
 }

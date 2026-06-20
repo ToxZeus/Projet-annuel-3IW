@@ -12,6 +12,10 @@ final class App
     private AccountService $accountService;
     private ExpenseService $expenseService;
     private IncomeService $incomeService;
+<<<<<<< HEAD
+=======
+    private ExceptionService $exceptionService;
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
     public function __construct()
     {
@@ -21,6 +25,10 @@ final class App
         $this->accountService = new AccountService($this->db);
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
+<<<<<<< HEAD
+=======
+        $this->exceptionService = new ExceptionService($this->db);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         $this->seedDemoExpenses();
     }
 
@@ -80,6 +88,30 @@ final class App
             return;
         }
 
+<<<<<<< HEAD
+=======
+        if ($page === 'exception-create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleExceptionCreate();
+            return;
+        }
+
+        if ($page === 'exception' && isset($_GET['id']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $action = $_POST['action'] ?? null;
+            if ($action === 'update') {
+                $this->handleExceptionUpdate((int) $_GET['id']);
+                return;
+            } elseif ($action === 'delete') {
+                $this->handleExceptionDelete((int) $_GET['id']);
+                return;
+            }
+        }
+
+        if ($page === 'admin' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleAdminPost();
+            return;
+        }
+
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         if ($page === 'accounts' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleAccountCreate();
             return;
@@ -205,6 +237,21 @@ final class App
                 'title' => 'Budgie | Prévisions',
                 'template' => 'pages/previsions.php',
             ],
+<<<<<<< HEAD
+=======
+            'admin' => [
+                'title' => 'Budgie | Administration',
+                'template' => 'pages/admin.php',
+            ],
+            'exception-create' => [
+                'title' => 'Budgie | Nouvelle exception',
+                'template' => 'pages/exceptions/create.php',
+            ],
+            'exception' => [
+                'title' => 'Budgie | Exception',
+                'template' => 'pages/exceptions/detail.php',
+            ],
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         ];
 
         if (!isset($routes[$page])) {
@@ -214,10 +261,26 @@ final class App
 
         $route = $routes[$page];
 
+<<<<<<< HEAD
         if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile']) && !$this->isAuthenticated()) {
             header('Location: /?page=login');
             exit;
         }
+=======
+        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin', 'exception', 'exception-create']) && !$this->isAuthenticated()) {
+            header('Location: /?page=login');
+            exit;
+        }
+        if ($page === 'admin' && !($this->currentUser()['is_admin'] ?? false)) {
+         http_response_code(403);
+        echo $this->renderLayout(
+        'Budgie | Accès refusé',
+        '<section class="section"><p class="notice notice-error">Accès refusé. Vous n\'êtes pas administrateur.</p></section>',
+        $this->currentUser()
+         );
+         return;
+        }
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         if ($page === 'account' && !isset($_GET['id'])) {
             http_response_code(400);
@@ -274,10 +337,27 @@ final class App
                 }));
             }
 
+<<<<<<< HEAD
             $data['account'] = $account;
             $data['expenses'] = $expenses;
             $data['incomes'] = $this->incomeService->findByAccount($account['id']);
             $data['search_query'] = $searchQuery;
+=======
+            $searchQueryIncome = trim((string) ($_GET['qr'] ?? ''));
+            $incomes = $this->incomeService->findByAccount($account['id']);
+            if ($searchQueryIncome !== '') {
+                $incomes = array_values(array_filter($incomes, function (array $income) use ($searchQueryIncome) {
+                    return stripos((string) $income['short_name'], $searchQueryIncome) !== false
+                        || stripos((string) $income['description'], $searchQueryIncome) !== false;
+                }));
+            }
+
+            $data['account'] = $account;
+            $data['expenses'] = $expenses;
+            $data['incomes'] = $incomes;
+            $data['search_query'] = $searchQuery;
+            $data['search_query_income'] = $searchQueryIncome;
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         } elseif ($page === 'expenses') {
             $allExpenses = $this->expenseService->findByUser($this->currentUser()['email']);
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
@@ -303,6 +383,10 @@ final class App
             }
             $data['expense'] = $expense;
             $data['account'] = $account;
+<<<<<<< HEAD
+=======
+            $data['exceptions'] = $this->exceptionService->findByEntity('expense', (int) $expense['id']);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
             if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -325,6 +409,10 @@ final class App
             }
             $data['income'] = $income;
             $data['account'] = $account;
+<<<<<<< HEAD
+=======
+            $data['exceptions'] = $this->exceptionService->findByEntity('income', (int) $income['id']);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
             if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -362,6 +450,7 @@ final class App
             $data['selected_month'] = $selectedMonth;
             $data['forecast_rows'] = $forecastRows;
             $data['totals'] = $totals;
+<<<<<<< HEAD
         }
 
         $oldInputKey = $this->oldInputKey($page);
@@ -371,6 +460,40 @@ final class App
 
         unset($_SESSION['flash_error'], $_SESSION['flash_success']);
         unset($_SESSION['old_input'][$oldInputKey]);
+=======
+        }elseif ($page === 'exception-create') {
+            $type     = trim((string) ($_GET['type'] ?? 'expense'));
+            $entityId = (int) ($_GET['entity_id'] ?? 0);
+            $data['entity_type'] = $type;
+            $data['entity_id']   = $entityId;
+        } elseif ($page === 'exception' && isset($_GET['id'])) {
+            $exception = $this->exceptionService->findById((int) $_GET['id']);
+            if (!$exception) {
+                http_response_code(404);
+                return;
+            }
+            $data['exception'] = $exception;
+        }elseif ($page === 'admin') {
+        $allUsers = $this->db->fetchAll(
+        'SELECT u.*, (SELECT COUNT(*) FROM accounts a WHERE a.user_email = u.email) AS nb_accounts
+        FROM users u ORDER BY u.created_at DESC'
+        );
+        $stats = [
+        'total_users'    => count($allUsers),
+        'premium_users'  => count(array_filter($allUsers, fn($u) => ($u['plan'] ?? 'free') === 'paid')),
+        'total_accounts' => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM accounts')['n'] ?? 0),
+        'total_expenses' => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM expenses')['n'] ?? 0),
+        'total_incomes'  => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM incomes')['n'] ?? 0),
+        ];
+        $data['users']               = $allUsers;
+        $data['stats']               = $stats;
+        $data['current_admin_email'] = $this->currentUser()['email'];
+        }
+
+        $content = $this->render($route['template'], $data);
+
+        unset($_SESSION['flash_error'], $_SESSION['flash_success']);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         echo $this->renderLayout($route['title'], $content, $data['user']);
     }
@@ -382,19 +505,28 @@ final class App
         $password = (string) ($_POST['password'] ?? '');
         $passwordConfirm = (string) ($_POST['password_confirm'] ?? '');
         $plan = 'free';
+<<<<<<< HEAD
         $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         // Validation
         if (empty($email) || empty($fullName) || empty($password)) {
             $_SESSION['flash_error'] = 'Tous les champs sont obligatoires.';
+<<<<<<< HEAD
             $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             header('Location: /?page=signup');
             exit;
         }
 
         if (!ValidationHelper::validateEmail($email)) {
             $_SESSION['flash_error'] = 'Email invalide.';
+<<<<<<< HEAD
             $this->flashOldInput('signup', ['email' => $email, 'full_name' => $fullName]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             header('Location: /?page=signup');
             exit;
         }
@@ -427,7 +559,10 @@ final class App
 
             // Envoyer l'email d'activation
             EmailHelper::sendActivation($email, explode(' ', $fullName)[0], $verificationToken);
+<<<<<<< HEAD
             unset($_SESSION['old_input']['signup']);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
             $_SESSION['flash_success'] = 'Inscription réussie. Veuillez confirmer votre adresse email en cliquant sur le lien reçu.';
             header('Location: /?page=login');
@@ -448,11 +583,20 @@ final class App
         $user = $this->userService->verifyCredentials($email, $password);
         if ($user !== null) {
             $_SESSION['user'] = [
+<<<<<<< HEAD
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
                 'plan' => $user['plan'] ?? 'free',
                 'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
                 'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
+=======
+            'email' => $user['email'],
+            'full_name' => $user['full_name'],
+            'plan' => $user['plan'] ?? 'free',
+            'is_admin' => (bool) ($user['is_admin'] ?? false),
+            'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
+            'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             ];
             $_SESSION['flash_success'] = 'Connexion réussie.';
             header('Location: /?page=dashboard');
@@ -460,7 +604,10 @@ final class App
         }
 
         $_SESSION['flash_error'] = 'Identifiants invalides.';
+<<<<<<< HEAD
         $this->flashOldInput('login', ['email' => $email]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         header('Location: /?page=login');
         exit;
     }
@@ -679,7 +826,10 @@ final class App
     private function handleForgotPasswordPost(): void
     {
         $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
+<<<<<<< HEAD
         $this->flashOldInput('forgot-password', ['email' => $email]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         if (empty($email)) {
             $_SESSION['flash_error'] = 'Veuillez entrer votre adresse email.';
@@ -828,6 +978,7 @@ final class App
         return $_SESSION['user'] ?? null;
     }
 
+<<<<<<< HEAD
     private function flashOldInput(string $key, array $input): void
     {
         $_SESSION['old_input'][$key] = $input;
@@ -846,6 +997,8 @@ final class App
         return $page;
     }
 
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
     private function isFreeUser(): bool
     {
         $user = $this->currentUser();
@@ -916,6 +1069,134 @@ final class App
 
         return $scheme . '://' . $host;
     }
+<<<<<<< HEAD
+=======
+    private function handleExceptionCreate(): void
+    {
+        $type        = trim((string) ($_POST['entity_type'] ?? 'expense'));
+        $entityId    = (int) ($_POST['entity_id'] ?? 0);
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception-create&type=' . $type . '&entity_id=' . $entityId);
+            exit;
+        }
+
+        $this->exceptionService->create($type, $entityId, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception créée avec succès.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
+    }
+
+    private function handleExceptionUpdate(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) { http_response_code(404); exit; }
+
+        $name        = trim((string) ($_POST['name'] ?? ''));
+        $description = trim((string) ($_POST['description'] ?? ''));
+        $amount      = (float) ($_POST['amount'] ?? 0);
+        $frequency   = trim((string) ($_POST['frequency'] ?? 'ponctuel'));
+        $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
+        $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
+        $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+
+        if (empty($name) || $amount <= 0) {
+            $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+            header('Location: /?page=exception&id=' . $id);
+            exit;
+        }
+
+        $this->exceptionService->update($id, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+        $_SESSION['flash_success'] = 'Exception mise à jour.';
+        header('Location: /?page=exception&id=' . $id);
+        exit;
+    }
+
+    private function handleExceptionDelete(int $id): void
+    {
+        $exception = $this->exceptionService->findById($id);
+        if (!$exception) { http_response_code(404); exit; }
+
+        $type     = $exception['entity_type'];
+        $entityId = $exception['entity_id'];
+        $this->exceptionService->delete($id);
+        $_SESSION['flash_success'] = 'Exception supprimée.';
+        $redirectPage = $type === 'income' ? 'income' : 'expense';
+        header('Location: /?page=' . $redirectPage . '&id=' . $entityId);
+        exit;
+    }
+    private function handleAdminPost(): void
+    {
+        // Double vérification sécurité côté serveur
+        if (!$this->isAuthenticated() || !($this->currentUser()['is_admin'] ?? false)) {
+            http_response_code(403);
+            exit;
+        }
+
+        $action      = trim((string) ($_POST['action'] ?? ''));
+        $targetEmail = trim((string) ($_POST['target_email'] ?? ''));
+
+        if ($targetEmail === '') {
+            $_SESSION['flash_error'] = 'Email cible manquant.';
+            header('Location: /?page=admin');
+            exit;
+        }
+
+        $targetUser = $this->userService->findByEmail($targetEmail);
+        if (!$targetUser) {
+            $_SESSION['flash_error'] = 'Utilisateur introuvable.';
+            header('Location: /?page=admin');
+            exit;
+        }
+
+        if ($action === 'set-plan') {
+            $plan = in_array($_POST['plan'] ?? '', ['free', 'paid'], true) ? $_POST['plan'] : 'free';
+            $this->userService->updatePlan($targetEmail, $plan);
+            $_SESSION['flash_success'] = 'Plan mis à jour.';
+
+        } elseif ($action === 'toggle-active') {
+            if ($targetEmail === $this->currentUser()['email']) {
+                $_SESSION['flash_error'] = 'Vous ne pouvez pas modifier votre propre statut.';
+                header('Location: /?page=admin');
+                exit;
+            }
+            $newState = $targetUser['is_active'] ? 0 : 1;
+            $this->db->exec('UPDATE users SET is_active = ? WHERE email = ?', [$newState, $targetEmail]);
+            $_SESSION['flash_success'] = 'Statut mis à jour.';
+
+        } elseif ($action === 'delete-user') {
+            if ($targetEmail === $this->currentUser()['email']) {
+                $_SESSION['flash_error'] = 'Vous ne pouvez pas supprimer votre propre compte.';
+                header('Location: /?page=admin');
+                exit;
+            }
+            // Supprimer en cascade : dépenses → revenus → comptes → utilisateur
+            $accounts = $this->accountService->findByUser($targetEmail);
+            foreach ($accounts as $acc) {
+                $this->db->exec('DELETE FROM expenses WHERE account_id = ?', [$acc['id']]);
+                $this->db->exec('DELETE FROM incomes WHERE account_id = ?', [$acc['id']]);
+            }
+            $this->db->exec('DELETE FROM accounts WHERE user_email = ?', [$targetEmail]);
+            $this->db->exec('DELETE FROM users WHERE email = ?', [$targetEmail]);
+            $_SESSION['flash_success'] = 'Utilisateur supprimé.';
+
+        } else {
+            $_SESSION['flash_error'] = 'Action inconnue.';
+        }
+
+        header('Location: /?page=admin');
+        exit;
+    }
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
     private function handleAccountCreate(): void
     {
@@ -1022,8 +1303,11 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+<<<<<<< HEAD
         $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
         $this->flashOldInput('expense-create:' . $accountId, $oldInput);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -1034,6 +1318,7 @@ final class App
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+<<<<<<< HEAD
             header('Location: /?page=expense-create&account_id=' . $accountId);
             exit;
         }
@@ -1043,6 +1328,9 @@ final class App
         } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
             $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
             header('Location: /?page=expense-create&account_id=' . $accountId);
+=======
+            header('Location: /?page=account&id=' . $accountId);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             exit;
         }
 
@@ -1054,7 +1342,10 @@ final class App
 
         try {
             $this->expenseService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+<<<<<<< HEAD
             unset($_SESSION['old_input']['expense-create:' . $accountId]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             $_SESSION['flash_success'] = 'Dépense créée avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création de la dépense.';
@@ -1085,8 +1376,11 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+<<<<<<< HEAD
         $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
         $this->flashOldInput('expense:' . $id, $oldInput);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
@@ -1094,6 +1388,7 @@ final class App
             exit;
         }
 
+<<<<<<< HEAD
         if ($frequency !== 'periodic') {
             $frequencyMonths = null;
         } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
@@ -1102,6 +1397,8 @@ final class App
             exit;
         }
 
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         if ($this->expenseService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
             $_SESSION['flash_success'] = 'Dépense mise à jour.';
         } else {
@@ -1152,8 +1449,11 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+<<<<<<< HEAD
         $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
         $this->flashOldInput('income-create:' . $accountId, $oldInput);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         $account = $this->accountService->findById($accountId);
         if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
@@ -1164,6 +1464,7 @@ final class App
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
+<<<<<<< HEAD
             header('Location: /?page=income-create&account_id=' . $accountId);
             exit;
         }
@@ -1173,6 +1474,9 @@ final class App
         } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
             $_SESSION['flash_error'] = 'Indiquez le nombre de mois pour cette frequence.';
             header('Location: /?page=income-create&account_id=' . $accountId);
+=======
+            header('Location: /?page=account&id=' . $accountId);
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             exit;
         }
 
@@ -1184,7 +1488,10 @@ final class App
 
         try {
             $this->incomeService->create($accountId, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate);
+<<<<<<< HEAD
             unset($_SESSION['old_input']['income-create:' . $accountId]);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
             $_SESSION['flash_success'] = 'Revenu créé avec succès.';
         } catch (Exception $e) {
             $_SESSION['flash_error'] = 'Erreur lors de la création du revenu.';
@@ -1215,8 +1522,11 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate = trim((string) ($_POST['end_date'] ?? '')) ?: null;
+<<<<<<< HEAD
         $oldInput = compact('shortName', 'description', 'amount', 'frequency', 'frequencyMonths', 'startDate', 'endDate');
         $this->flashOldInput('income:' . $id, $oldInput);
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
 
         if (empty($shortName) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
@@ -1224,6 +1534,7 @@ final class App
             exit;
         }
 
+<<<<<<< HEAD
         if ($frequency !== 'periodic') {
             $frequencyMonths = null;
         } elseif ($frequencyMonths === null || $frequencyMonths < 1) {
@@ -1232,6 +1543,8 @@ final class App
             exit;
         }
 
+=======
+>>>>>>> e7990b069e93824736214bdf71177ae6edb73062
         if ($this->incomeService->update($id, $shortName, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate)) {
             $_SESSION['flash_success'] = 'Revenu mis à jour.';
         } else {
