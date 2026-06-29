@@ -1,194 +1,99 @@
-# Guide de déploiement
+# Déploiement
 
-## Déploiement local avec Docker Compose
+## Architecture de production
 
-### Étape 1 : Prérequis
+Deux conteneurs Docker communiquent via un réseau interne :
 
-- Docker Desktop (ou Docker + Docker Compose)
-- Git
+- **nginx** (`nginx:alpine`) — sert les fichiers statiques, proxifie les requêtes PHP vers php-fpm, gère le SSL
+- **php** (`php:8.3-fpm`) — exécute le code PHP
 
-### Étape 2 : Cloner le dépôt
-
-```bash
-git clone https://github.com/ToxZeus/Projet-annuel-3IW.git
-cd Projet-annuel-3IW
+```
+Internet → Nginx (443/80) → PHP-FPM (9000) → SQLite
 ```
 
-### Étape 3 : Lancer l'application
-
-```bash
-docker-compose up -d
-```
-
-### Étape 4 : Accéder à l'application
-
-L'application est disponible sur : **http://localhost:8080**
-
-### Connexion
-
-- Email de démo : `demo@budgie.local`
-- Mot de passe : `BudgieDemo2026!`
-
-Ou créer un nouveau compte en cliquant sur "Créer un compte".
-
-### Logs
-
-Voir les logs en direct :
-
-```bash
-docker-compose logs -f web
-```
-
-### Arrêter l'application
-
-```bash
-docker-compose down
-```
-
-### Persistance des données
-
-La base de données SQLite est stockée dans le répertoire `./data/budgie.db`. Ce fichier persiste entre les redémarrages des conteneurs.
-
-## Architecture Docker
-
-### Dockerfile
-
-- Image de base : `php:8.4-apache`
-- Extensions PHP : `pdo`, `pdo_sqlite`
-- Apache modules : `mod_rewrite`
-- Document root : `/var/www/html/public`
-
-### docker-compose.yml
-
-Un seul service :
-- **web** : Apache + PHP 8.4
-  - Port : `8080:80`
-  - Volumes :
-    - Code application : `.:/var/www/html`
-    - Répertoire données : `./data:/var/www/html/data`
-
-## Déploiement en production
-
-Le déploiement production utilise :
-
-- l'application PHP/Apache construite par le `Dockerfile`
-- Caddy comme reverse proxy public
-- HTTPS automatique avec Let's Encrypt
-- la base SQLite persistante dans `./data/budgie.db`
+## Lancer en production
 
 ### Prérequis serveur
 
-- Un serveur Linux avec Docker et Docker Compose
-- Les ports `80` et `443` ouverts
-- Un nom de domaine qui pointe vers l'IP publique du serveur
+- Docker installé (`curl -fsSL https://get.docker.com | sh`)
+- Certificats Let's Encrypt présents dans `/etc/letsencrypt/`
+- Fichier `.env` présent à la racine du projet
 
-### Configurer le nom de domaine
-
-Chez votre fournisseur DNS, créez un enregistrement `A` :
-
-```text
-budgie.example.com -> IP_PUBLIQUE_DU_SERVEUR
-```
-
-Remplacez `budgie.example.com` par votre vrai domaine ou sous-domaine.
-
-### Préparer les variables d'environnement
-
-Sur le serveur :
+### Démarrer
 
 ```bash
-cp .env.production.example .env.production
+docker compose -f docker-compose.production.yml up -d --build
 ```
 
-Puis modifiez au minimum :
+### Mettre à jour (via script deploy)
 
-```env
-DOMAIN_NAME=budgie.example.com
-APP_URL=https://budgie.example.com
-SMTP_FROM_EMAIL=noreply@budgie.example.com
+```bash
+deploy
 ```
 
-Pour activer le paiement premium Stripe, renseignez aussi :
+Le script `/usr/local/bin/deploy` effectue :
+1. `git pull` depuis `main`
+2. Correction des permissions sur `./data`
+3. `docker compose -f docker-compose.production.yml up -d --build`
+
+## Développement local
+
+```bash
+docker compose up -d
+```
+
+- Application : http://localhost:8080
+- MailHog (mails) : http://localhost:8025
+
+## Variables d'environnement
+
+Le fichier `.env` doit être présent à la racine (non commité) :
 
 ```env
+APP_URL=https://budgie.software
+APP_ENV=production
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=xxx@smtp-brevo.com
+SMTP_PASSWORD=xxx
+SMTP_FROM_EMAIL=noreply@budgie.software
+SMTP_FROM_NAME=Budgie
 STRIPE_SECRET_KEY=sk_live_xxx
 STRIPE_PREMIUM_PRICE_ID=price_xxx
 ```
 
-### Lancer en production
+## SSL
+
+Les certificats sont gérés par Certbot sur l'hôte et montés en lecture seule dans le conteneur Nginx :
+
+```yaml
+- /etc/letsencrypt:/etc/letsencrypt:ro
+```
+
+Renouvellement automatique via le timer systemd Certbot. Après renouvellement, redémarrer Nginx :
 
 ```bash
-docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
+docker compose -f docker-compose.production.yml restart nginx
 ```
 
-L'application sera disponible sur :
+## Dépannage
 
-```text
-https://budgie.example.com
-```
-
-Caddy demande et renouvelle automatiquement le certificat HTTPS tant que le domaine pointe bien vers le serveur.
-
-### Mettre à jour l'application sur le serveur
-
-```bash
-git pull origin main
-docker compose -f docker-compose.production.yml --env-file .env.production up -d --build
-```
-
-### Voir les logs production
+### Voir les logs
 
 ```bash
 docker compose -f docker-compose.production.yml logs -f
 ```
 
-### Arrêter la production
+### Permissions base de données
+
+```bash
+chown -R 33:33 /var/www/budgie/data
+chmod -R 775 /var/www/budgie/data
+```
+
+### Rebuild complet
 
 ```bash
 docker compose -f docker-compose.production.yml down
+docker compose -f docker-compose.production.yml up -d --build
 ```
-
-Les volumes Caddy conservent les certificats HTTPS. Le dossier `./data` conserve la base SQLite.
-
-### Points à renforcer ensuite
-
-1. **Backups** : automatiser les sauvegardes SQLite
-2. **Secrets** : gérer les secrets avec Docker Secrets ou un coffre externe
-3. **Monitoring** : ajouter logs centralisés et alertes
-4. **Database** : migrer vers PostgreSQL/MySQL si le trafic augmente
-
-## Dépannage
-
-### Port 8080 déjà utilisé
-
-Modifier le port dans `docker-compose.yml` :
-
-```yaml
-ports:
-  - "8090:80"  # Utiliser 8090 au lieu de 8080
-```
-
-### Base de données non accessible
-
-Vérifier les permissions du répertoire `./data` :
-
-```bash
-chmod 755 ./data
-```
-
-### Rebuild suite à modifications
-
-```bash
-docker-compose down
-docker-compose up -d --build
-```
-
-## Développement local sans Docker
-
-Si vous préférez développer sans Docker :
-
-```bash
-php -S localhost:8000 -t public
-```
-
-Assurez-vous que PHP 8.4+ et SQLite3 sont installés.
