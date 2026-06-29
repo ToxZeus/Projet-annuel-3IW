@@ -1502,11 +1502,11 @@ final class App
         $balance = (float) ($account['balance'] ?? 0);
 
         foreach ($this->incomeService->findByAccount((int) $account['id']) as $income) {
-            $balance += $this->amountUntilDate($income, $cutoffDate);
+        $balance += $this->amountUntilDate($income, $cutoffDate, 'income');
         }
 
         foreach ($this->expenseService->findByAccount((int) $account['id']) as $expense) {
-            $balance -= $this->amountUntilDate($expense, $cutoffDate);
+            $balance -= $this->amountUntilDate($expense, $cutoffDate, 'expense');
         }
 
         return $balance;
@@ -1519,17 +1519,27 @@ final class App
 
         $incomeTotal = 0.0;
         foreach ($incomes as $income) {
-            if ($this->occursInMonth($income, $month)) {
-                $incomeTotal += (float) $income['amount'];
-            }
-        }
+    if ($this->occursInMonth($income, $month)) {
+        $incomeTotal += $this->exceptionService->getEffectiveAmount(
+            (float) $income['amount'],
+            'income',
+            (int) $income['id'],
+            $month
+        );
+    }
+}
 
-        $expenseTotal = 0.0;
-        foreach ($expenses as $expense) {
-            if ($this->occursInMonth($expense, $month)) {
-                $expenseTotal += (float) $expense['amount'];
-            }
-        }
+$expenseTotal = 0.0;
+foreach ($expenses as $expense) {
+    if ($this->occursInMonth($expense, $month)) {
+        $expenseTotal += $this->exceptionService->getEffectiveAmount(
+            (float) $expense['amount'],
+            'expense',
+            (int) $expense['id'],
+            $month
+        );
+    }
+}
 
         $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', $month . '-01');
         $startBalance = $monthStart
@@ -1606,8 +1616,7 @@ final class App
         return true;
     }
 
-    private function amountUntilDate(array $entry, DateTimeImmutable $cutoffDate): float
-    {
+private function amountUntilDate(array $entry, DateTimeImmutable $cutoffDate, string $entityType = 'expense'): float    {
         $startDate = DateTimeImmutable::createFromFormat('Y-m-d', (string) $entry['start_date']);
         if (!$startDate || $startDate > $cutoffDate) {
             return 0.0;
@@ -1625,27 +1634,47 @@ final class App
             return 0.0;
         }
 
-        $amount = (float) $entry['amount'];
-        $frequency = strtolower(trim((string) ($entry['frequency'] ?? 'ponctuel')));
+       $baseAmount = (float) $entry['amount'];
+$frequency  = strtolower(trim((string) ($entry['frequency'] ?? 'ponctuel')));
+$entityId   = (int) $entry['id'];
 
-        if ($frequency === 'ponctuel') {
-            return $amount;
-        }
+if ($frequency === 'ponctuel') {
+    $month = $startDate->format('Y-m');
+    return $this->exceptionService->getEffectiveAmount($baseAmount, $entityType, $entityId, $month);
+}
 
-        if ($frequency === 'mensuel') {
-            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, 1);
-        }
+$monthsInterval = 1;
+if ($frequency === 'periodic' || $frequency === 'periodique') {
+    $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
+    if ($monthsInterval <= 0) {
+        $monthsInterval = 1;
+    }
+}
 
-        if ($frequency === 'periodic' || $frequency === 'periodique') {
-            $monthsInterval = (int) ($entry['frequency_months'] ?? 1);
-            if ($monthsInterval <= 0) {
-                $monthsInterval = 1;
-            }
+$total = 0.0;
+$startMonthIndex = ((int) $startDate->format('Y')) * 12 + ((int) $startDate->format('n'));
+$endMonthIndex   = ((int) $effectiveEndDate->format('Y')) * 12 + ((int) $effectiveEndDate->format('n'));
+$startDay = (int) $startDate->format('j');
 
-            return $amount * $this->countMonthlyOccurrences($startDate, $effectiveEndDate, $monthsInterval);
-        }
+for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex += $monthsInterval) {
+    $year  = intdiv($monthIndex - 1, 12);
+    $month = (($monthIndex - 1) % 12) + 1;
+    $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
+    if (!$monthStart) {
+        continue;
+    }
 
-        return $amount;
+    $lastDay = (int) $monthStart->modify('last day of this month')->format('j');
+    $occurrenceDay  = min($startDay, $lastDay);
+    $occurrenceDate = $monthStart->setDate($year, $month, $occurrenceDay);
+
+    if ($occurrenceDate >= $startDate && $occurrenceDate <= $effectiveEndDate) {
+        $monthKey = sprintf('%04d-%02d', $year, $month);
+        $total += $this->exceptionService->getEffectiveAmount($baseAmount, $entityType, $entityId, $monthKey);
+    }
+}
+
+        return $total;
     }
 
     private function countMonthlyOccurrences(DateTimeImmutable $startDate, DateTimeImmutable $endDate, int $monthsInterval): int
