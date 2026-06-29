@@ -435,6 +435,19 @@ h1 {
     opacity: 0.9;
 }
 
+.charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .forecast-table-wrap {
     overflow-x: auto;
 }

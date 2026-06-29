@@ -415,9 +415,33 @@ final class App
                 $totals['projected_balance'] += $forecast['projected_balance'];
             }
 
+            $chartLabels = [];
+            $chartBalances = [];
+            $chartIncomes = [];
+            $chartExpenses = [];
+            $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', $selectedMonth . '-01');
+            for ($i = 0; $i < 12; $i++) {
+                $m = $monthStart->modify("+{$i} months")->format('Y-m');
+                $monthTotals = ['projected_balance' => 0.0, 'incomes' => 0.0, 'expenses' => 0.0];
+                foreach ($accounts as $account) {
+                    $f = $this->buildMonthlyForecast($account, $m);
+                    $monthTotals['projected_balance'] += $f['projected_balance'];
+                    $monthTotals['incomes'] += $f['incomes'];
+                    $monthTotals['expenses'] += $f['expenses'];
+                }
+                $chartLabels[] = $m;
+                $chartBalances[] = round($monthTotals['projected_balance'], 2);
+                $chartIncomes[] = round($monthTotals['incomes'], 2);
+                $chartExpenses[] = round($monthTotals['expenses'], 2);
+            }
+
             $data['selected_month'] = $selectedMonth;
             $data['forecast_rows'] = $forecastRows;
             $data['totals'] = $totals;
+            $data['chart_labels'] = $chartLabels;
+            $data['chart_balances'] = $chartBalances;
+            $data['chart_incomes'] = $chartIncomes;
+            $data['chart_expenses'] = $chartExpenses;
         } elseif ($page === 'exception-create') {
             $type     = trim((string) ($_GET['type'] ?? 'expense'));
             $entityId = (int) ($_GET['entity_id'] ?? 0);

@@ -43,6 +43,72 @@
     </div>
 </section>
 
+<?php if (!empty($chart_labels)) : ?>
+<section class="section" style="padding-top: 0;">
+    <div class="charts-grid">
+        <article class="detail-card">
+            <h2>Évolution du solde (12 mois)</h2>
+            <canvas id="chartBalance" height="120"></canvas>
+        </article>
+        <article class="detail-card">
+            <h2>Revenus vs Dépenses (12 mois)</h2>
+            <canvas id="chartIncomesExpenses" height="120"></canvas>
+        </article>
+    </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const labels = <?= json_encode($chart_labels) ?>;
+    const balances = <?= json_encode($chart_balances) ?>;
+    const incomes = <?= json_encode($chart_incomes) ?>;
+    const expenses = <?= json_encode($chart_expenses) ?>;
+
+    const green = '#2f5d50';
+    const greenLight = 'rgba(47,93,80,0.15)';
+    const red = '#c0392b';
+    const redLight = 'rgba(192,57,43,0.15)';
+
+    new Chart(document.getElementById('chartBalance'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Solde projeté (€)',
+                data: balances,
+                borderColor: green,
+                backgroundColor: greenLight,
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+        }
+    });
+
+    new Chart(document.getElementById('chartIncomesExpenses'), {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'Revenus (€)', data: incomes, backgroundColor: greenLight, borderColor: green, borderWidth: 1 },
+                { label: 'Dépenses (€)', data: expenses, backgroundColor: redLight, borderColor: red, borderWidth: 1 }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: { y: { ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } } }
+        }
+    });
+})();
+</script>
+<?php endif; ?>
+
 <section class="section" style="padding-top: 0;">
     <?php if (empty($forecast_rows)) : ?>
         <p class="empty-state">Aucun compte disponible pour calculer les previsions.</p>

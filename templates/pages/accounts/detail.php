@@ -15,6 +15,25 @@
         <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
+    <div class="stats-grid" style="margin-bottom: 24px;">
+        <article class="stat">
+            <span class="stat-label">Solde actuel</span>
+            <strong><?= number_format((float) ($account['balance'] ?? 0), 2, ',', ' ') ?> €</strong>
+        </article>
+        <article class="stat">
+            <span class="stat-label">Solde initial</span>
+            <strong><?= number_format((float) ($account['initial_balance'] ?? 0), 2, ',', ' ') ?> €</strong>
+        </article>
+        <article class="stat">
+            <span class="stat-label">Taux de rémunération</span>
+            <strong><?= number_format((float) ($account['interest_rate'] ?? 0), 2, ',', ' ') ?> %</strong>
+        </article>
+        <article class="stat">
+            <span class="stat-label">Taux d'imposition</span>
+            <strong><?= number_format((float) ($account['tax_rate'] ?? 0), 2, ',', ' ') ?> %</strong>
+        </article>
+    </div>
+
     <div class="detail-grid">
         <article class="detail-card">
             <h2>Informations</h2>
