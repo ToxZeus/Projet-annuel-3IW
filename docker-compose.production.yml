@@ -1,44 +1,26 @@
 services:
-  web:
+  php:
     build: .
     restart: unless-stopped
-    environment:
-      - APP_URL=${APP_URL}
-      - APP_ENV=${APP_ENV}
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_PORT=${SMTP_PORT}
-      - SMTP_USER=${SMTP_USER}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
-      - SMTP_FROM_NAME=${SMTP_FROM_NAME}
-      - DATABASE_PATH=${DATABASE_PATH}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_PREMIUM_PRICE_ID=${STRIPE_PREMIUM_PRICE_ID}
     volumes:
-      - ./data:/var/www/html/data
+      - .:/var/www/budgie
     networks:
       - budgie
 
-  caddy:
-    image: caddy:2-alpine
+  nginx:
+    image: nginx:alpine
     restart: unless-stopped
-    depends_on:
-      - web
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      - DOMAIN_NAME=${DOMAIN_NAME}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+      - .:/var/www/budgie
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - php
     networks:
       - budgie
-
-volumes:
-  caddy_data:
-  caddy_config:
 
 networks:
   budgie:
