@@ -126,6 +126,19 @@ final class Database
                 end_date TEXT DEFAULT NULL
             )
         ');
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS account_shares (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id INTEGER NOT NULL,
+                owner_email TEXT NOT NULL,
+                invited_email TEXT NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                status TEXT NOT NULL DEFAULT \'pending\',
+                created_at TEXT NOT NULL,
+                accepted_at TEXT DEFAULT NULL,
+                FOREIGN KEY (account_id) REFERENCES accounts(id)
+            )
+        ');
     
     }
 

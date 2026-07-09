@@ -21,6 +21,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
     <?php endif; ?>
 
     <article class="detail-card">
+        <?php if (!empty($is_owner)) : ?>
         <form method="post" action="/?page=expense&id=<?= $expense['id'] ?>" class="detail-form">
             <input type="hidden" name="action" value="update">
 
@@ -72,6 +73,22 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
             <input type="hidden" name="action" value="delete">
             <button class="button button-danger" type="submit" onclick="return confirm('Supprimer cette dépense ?')">Supprimer</button>
         </form>
+        <?php else : ?>
+            <dl>
+                <dt>Nom court</dt>
+                <dd><?= htmlspecialchars($expense['short_name'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Description</dt>
+                <dd><?= htmlspecialchars($expense['description'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Montant</dt>
+                <dd class="balance"><?= number_format((float) $expense['amount'], 2, ',', ' ') ?> €</dd>
+                <dt>Fréquence</dt>
+                <dd><?= htmlspecialchars($expense['frequency'], ENT_QUOTES, 'UTF-8') ?> <?= $expense['frequency_months'] ? '(' . $expense['frequency_months'] . ' mois)' : '' ?></dd>
+                <dt>Date de début</dt>
+                <dd><?= htmlspecialchars($expense['start_date'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Date de fin</dt>
+                <dd><?= htmlspecialchars($expense['end_date'] ?? 'Indéfinie', ENT_QUOTES, 'UTF-8') ?></dd>
+            </dl>
+        <?php endif; ?>
     </article>
 </section>
 
@@ -81,7 +98,9 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
             <p class="eyebrow">Exceptions</p>
             <h2>Exceptions liées à cette dépense</h2>
         </div>
+        <?php if (!empty($is_owner)) : ?>
         <a class="button" href="/?page=exception-create&type=expense&entity_id=<?= $expense['id'] ?>">+ Nouvelle exception</a>
+        <?php endif; ?>
     </div>
 
     <?php if (empty($exceptions)) : ?>

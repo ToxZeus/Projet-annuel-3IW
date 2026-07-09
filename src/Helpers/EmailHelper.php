@@ -57,7 +57,28 @@ final class EmailHelper
 
         return self::sendEmail($email, $subject, $htmlBody, $textBody);
     }
+        public static function sendShareInvitation(string $email, string $ownerName, string $accountName, string $token): bool
+    {
+        $appUrl = getenv('APP_URL') ?: 'http://localhost:8000';
+        $acceptLink = $appUrl . '/?page=share-accept&token=' . $token;
 
+        $subject = $ownerName . ' partage un compte Budgie avec vous';
+        $safeOwner = htmlspecialchars($ownerName, ENT_QUOTES, 'UTF-8');
+        $safeAccount = htmlspecialchars($accountName, ENT_QUOTES, 'UTF-8');
+
+        $htmlBody = "
+            <h2>Partage de compte Budgie</h2>
+            <p>Bonjour,</p>
+            <p>$safeOwner vous invite à consulter (en lecture seule) le compte <strong>$safeAccount</strong> sur Budgie.</p>
+            <p><a href=\"$acceptLink\" style=\"background-color: #2f5d50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Accepter l'invitation</a></p>
+            <p>Si vous n'avez pas encore de compte Budgie, vous devrez d'abord vous inscrire avec cette même adresse email.</p>
+            <p>Ou copiez ce lien : $acceptLink</p>
+        ";
+
+        $textBody = "Bonjour,\n\n$ownerName vous invite à consulter (en lecture seule) le compte \"$accountName\" sur Budgie.\nAcceptez l'invitation ici : $acceptLink\n\nSi vous n'avez pas encore de compte Budgie, inscrivez-vous d'abord avec cette même adresse email.";
+
+        return self::sendEmail($email, $subject, $htmlBody, $textBody);
+    }
     private static function sendEmail(string $to, string $subject, string $htmlBody, string $textBody): bool
     {
         $config = self::getMailer();

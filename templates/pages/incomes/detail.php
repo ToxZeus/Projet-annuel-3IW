@@ -21,6 +21,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
     <?php endif; ?>
 
     <article class="detail-card">
+        <?php if (!empty($is_owner)) : ?>
         <form method="post" action="/?page=income&id=<?= $income['id'] ?>" class="detail-form">
             <input type="hidden" name="action" value="update">
 
@@ -72,6 +73,22 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
             <input type="hidden" name="action" value="delete">
             <button class="button button-danger" type="submit" onclick="return confirm('Supprimer ce revenu ?')">Supprimer</button>
         </form>
+        <?php else : ?>
+            <dl>
+                <dt>Nom court</dt>
+                <dd><?= htmlspecialchars($income['short_name'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Description</dt>
+                <dd><?= htmlspecialchars($income['description'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Montant</dt>
+                <dd class="balance"><?= number_format((float) $income['amount'], 2, ',', ' ') ?> €</dd>
+                <dt>Fréquence</dt>
+                <dd><?= htmlspecialchars($income['frequency'], ENT_QUOTES, 'UTF-8') ?> <?= $income['frequency_months'] ? '(' . $income['frequency_months'] . ' mois)' : '' ?></dd>
+                <dt>Date de début</dt>
+                <dd><?= htmlspecialchars($income['start_date'], ENT_QUOTES, 'UTF-8') ?></dd>
+                <dt>Date de fin</dt>
+                <dd><?= htmlspecialchars($income['end_date'] ?? 'Indéfinie', ENT_QUOTES, 'UTF-8') ?></dd>
+            </dl>
+        <?php endif; ?>
     </article>
 </section>
 
@@ -82,7 +99,9 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
             <p class="eyebrow">Exceptions</p>
             <h2>Exceptions liées à ce revenu</h2>
         </div>
+        <?php if (!empty($is_owner)) : ?>
         <a class="button" href="/?page=exception-create&type=income&entity_id=<?= $income['id'] ?>">+ Nouvelle exception</a>
+        <?php endif; ?>
     </div>
 
     <div class="accounts-grid">
@@ -116,7 +135,9 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
             <p class="eyebrow">Exceptions</p>
             <h2>Exceptions liées à ce revenu</h2>
         </div>
+        <?php if (!empty($is_owner)) : ?>
         <a class="button" href="/?page=exception-create&type=income&entity_id=<?= $income['id'] ?>">+ Nouvelle exception</a>
+        <?php endif; ?>
     </div>
     <p class="empty-state">Aucune exception pour ce revenu.</p>
 </section>

@@ -15,6 +15,10 @@
         <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
+    <?php if (empty($is_owner)) : ?>
+        <p class="notice">Ce compte vous a été partagé. Vous y avez accès en lecture seule.</p>
+    <?php endif; ?>
+
     <div class="stats-grid" style="margin-bottom: 24px;">
         <article class="stat">
             <span class="stat-label">Solde actuel</span>
@@ -37,6 +41,7 @@
     <div class="detail-grid">
         <article class="detail-card">
             <h2>Informations</h2>
+            <?php if (!empty($is_owner)) : ?>
             <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form">
                 <input type="hidden" name="action" value="update">
 
@@ -67,6 +72,63 @@
 
                 <button class="button" type="submit">Mettre à jour</button>
             </form>
+            <?php else : ?>
+                <dl>
+                    <dt>Nom court</dt>
+                    <dd><?= htmlspecialchars($account['short_name'], ENT_QUOTES, 'UTF-8') ?></dd>
+                    <dt>Description</dt>
+                    <dd><?= htmlspecialchars($account['description'], ENT_QUOTES, 'UTF-8') ?></dd>
+                    <dt>Taux de rémunération</dt>
+                    <dd><?= number_format((float) $account['interest_rate'], 2, ',', ' ') ?> %</dd>
+                    <dt>Taux d'imposition</dt>
+                    <dd><?= number_format((float) $account['tax_rate'], 2, ',', ' ') ?> %</dd>
+                </dl>
+            <?php endif; ?>
+        </article>
+
+        <?php if (!empty($is_owner)) : ?>
+        <article class="detail-card">
+            <h2>Partage</h2>
+            <p>Invitez quelqu'un à consulter ce compte en lecture seule.</p>
+            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form">
+                <input type="hidden" name="action" value="share">
+                <label>
+                    Adresse email
+                    <input type="email" name="invited_email" required placeholder="ami@exemple.com">
+                </label>
+                <button class="button" type="submit">Envoyer l'invitation</button>
+            </form>
+
+            <?php if (!empty($shares)) : ?>
+                <div class="forecast-table-wrap" style="margin-top: 16px;">
+                    <table class="forecast-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Statut</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($shares as $share) : ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($share['invited_email'], ENT_QUOTES, 'UTF-8') ?></td>
+                                    <td><?= $share['status'] === 'accepted' ? 'Accepté' : 'En attente' ?></td>
+                                    <td>
+                                        <form method="post" action="/?page=account&id=<?= $account['id'] ?>" onsubmit="return confirm('Révoquer ce partage ?')">
+                                            <input type="hidden" name="action" value="share-revoke">
+                                            <input type="hidden" name="share_id" value="<?= $share['id'] ?>">
+                                            <button class="button button-secondary" type="submit">Révoquer</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else : ?>
+                <p class="empty-state">Ce compte n'est partagé avec personne.</p>
+            <?php endif; ?>
         </article>
 
         <article class="detail-card danger">
@@ -77,6 +139,7 @@
                 <button class="button button-danger" type="submit" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce compte ?')">Supprimer le compte</button>
             </form>
         </article>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -86,7 +149,9 @@
             <p class="eyebrow">Dépenses</p>
             <h2>Liste des dépenses liées</h2>
         </div>
+        <?php if (!empty($is_owner)) : ?>
         <a class="button" href="/?page=expense-create&account_id=<?= $account['id'] ?>">+ Nouvelle dépense</a>
+        <?php endif; ?>
     </div>
 
     <article class="detail-card" style="margin-bottom: 24px;">
@@ -140,7 +205,9 @@
             <p class="eyebrow">Revenus</p>
             <h2>Liste des revenus liés</h2>
         </div>
+        <?php if (!empty($is_owner)) : ?>
         <a class="button" href="/?page=income-create&account_id=<?= $account['id'] ?>">+ Nouveau revenu</a>
+        <?php endif; ?>
     </div>
 
     <article class="detail-card" style="margin-bottom: 24px;">
