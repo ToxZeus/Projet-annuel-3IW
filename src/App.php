@@ -13,6 +13,7 @@ final class App
     private ExpenseService $expenseService;
     private IncomeService $incomeService;
     private ExceptionService $exceptionService;
+    private ShareService $shareService;
 
     public function __construct()
     {
@@ -23,6 +24,7 @@ final class App
         $this->expenseService = new ExpenseService($this->db);
         $this->incomeService = new IncomeService($this->db);
         $this->exceptionService = new ExceptionService($this->db);
+        $this->shareService = new ShareService($this->db);
         $this->seedDemoExpenses();
     }
 
@@ -116,9 +118,19 @@ final class App
             } elseif ($action === 'delete') {
                 $this->handleAccountDelete((int) $_GET['id']);
                 return;
+            } elseif ($action === 'share') {
+                $this->handleAccountShareInvite((int) $_GET['id']);
+                return;
+            } elseif ($action === 'share-revoke') {
+                $this->handleAccountShareRevoke((int) $_GET['id']);
+                return;
             }
         }
 
+        if ($page === 'share-accept' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->handleShareAccept();
+            return;
+        }
         if ($page === 'expenses' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleExpenseCreate();
             return;
@@ -240,6 +252,10 @@ final class App
                 'title' => 'Budgie | Exception',
                 'template' => 'pages/exceptions/detail.php',
             ],
+            'share-accept' => [
+                'title' => 'Budgie | Invitation de partage',
+                'template' => 'pages/share-accept.php',
+            ],
         ];
 
         if (!isset($routes[$page])) {
@@ -249,7 +265,11 @@ final class App
 
         $route = $routes[$page];
 
-        if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin', 'exception', 'exception-create']) && !$this->isAuthenticated()) {
+    if (in_array($page, ['dashboard', 'accounts', 'account', 'account-create', 'expenses', 'expense', 'expense-create', 'incomes', 'income', 'income-create', 'previsions', 'subscriptions', 'profile', 'admin', 'exception', 'exception-create', 'share-accept']) && !$this->isAuthenticated()) {
+            if ($page === 'share-accept' && isset($_GET['token'])) {
+                $_SESSION['pending_share_token'] = (string) $_GET['token'];
+                $_SESSION['flash_error'] = 'Connectez-vous (ou inscrivez-vous avec cette même adresse email) pour accepter l\'invitation.';
+            }
             header('Location: /?page=login');
             exit;
         }
@@ -302,15 +322,36 @@ final class App
             $data['nb_accounts'] = count($accounts);
             $data['nb_expenses'] = $totalExpenses;
             $data['nb_incomes']  = $totalIncomes;
-        } elseif ($page === 'accounts') {
+} elseif ($page === 'accounts') {
             $data['accounts'] = $this->withComputedBalances($this->accountService->findByUser($this->currentUser()['email']));
+            $data['shared_accounts'] = $this->withComputedBalances(array_map(
+                fn (array $row): array => [
+                    'id' => $row['account_id'],
+                    'short_name' => $row['short_name'],
+                    'description' => $row['description'],
+                    'balance' => $row['balance'],
+                    'interest_rate' => $row['interest_rate'],
+                    'tax_rate' => $row['tax_rate'],
+                    'created_at' => $row['account_created_at'],
+                    'owner_email' => $row['owner_email'],
+                ],
+                $this->shareService->findAccountsSharedWithUser($this->currentUser()['email'])
+            ));
         } elseif ($page === 'account' && isset($_GET['id'])) {
             $account = $this->accountService->findById((int) $_GET['id']);
-            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            $isOwner = $account !== null && $account['user_email'] === $this->currentUser()['email'];
+            $hasSharedAccess = !$isOwner && $account !== null
+                && $this->shareService->hasAcceptedAccess($account['id'], $this->currentUser()['email']);
+
+            if (!$account || (!$isOwner && !$hasSharedAccess)) {
                 http_response_code(404);
                 return;
             }
             $account = $this->withComputedBalance($account);
+            $data['is_owner'] = $isOwner;
+            if ($isOwner) {
+                $data['shares'] = $this->shareService->findByAccount($account['id']);
+            }
             $searchQuery = trim((string) ($_GET['q'] ?? ''));
             $expenses = $this->expenseService->findByAccount($account['id']);
             if ($searchQuery !== '') {
@@ -345,19 +386,23 @@ final class App
             }
             $data['expenses'] = $allExpenses;
             $data['search_query'] = $searchQuery;
-        } elseif ($page === 'expense' && isset($_GET['id'])) {
+       } elseif ($page === 'expense' && isset($_GET['id'])) {
             $expense = $this->expenseService->findById((int) $_GET['id']);
             if (!$expense) {
                 http_response_code(404);
                 return;
             }
             $account = $this->accountService->findById((int) $expense['account_id']);
-            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            $isOwner = $account !== null && $account['user_email'] === $this->currentUser()['email'];
+            $hasSharedAccess = !$isOwner && $account !== null
+                && $this->shareService->hasAcceptedAccess($account['id'], $this->currentUser()['email']);
+            if (!$account || (!$isOwner && !$hasSharedAccess)) {
                 http_response_code(404);
                 return;
             }
             $data['expense'] = $expense;
             $data['account'] = $account;
+            $data['is_owner'] = $isOwner;
             $data['exceptions'] = $this->exceptionService->findByEntity('expense', (int) $expense['id']);
         } elseif ($page === 'expense-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
@@ -368,19 +413,23 @@ final class App
             $data['account'] = $account;
         } elseif ($page === 'incomes') {
             $data['incomes'] = $this->incomeService->findByUser($this->currentUser()['email']);
-        } elseif ($page === 'income' && isset($_GET['id'])) {
+       } elseif ($page === 'income' && isset($_GET['id'])) {
             $income = $this->incomeService->findById((int) $_GET['id']);
             if (!$income) {
                 http_response_code(404);
                 return;
             }
             $account = $this->accountService->findById((int) $income['account_id']);
-            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            $isOwner = $account !== null && $account['user_email'] === $this->currentUser()['email'];
+            $hasSharedAccess = !$isOwner && $account !== null
+                && $this->shareService->hasAcceptedAccess($account['id'], $this->currentUser()['email']);
+            if (!$account || (!$isOwner && !$hasSharedAccess)) {
                 http_response_code(404);
                 return;
             }
             $data['income'] = $income;
             $data['account'] = $account;
+            $data['is_owner'] = $isOwner;
             $data['exceptions'] = $this->exceptionService->findByEntity('income', (int) $income['id']);
         } elseif ($page === 'income-create' && isset($_GET['account_id'])) {
             $account = $this->accountService->findById((int) $_GET['account_id']);
@@ -466,11 +515,18 @@ final class App
                 'total_expenses' => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM expenses')['n'] ?? 0),
                 'total_incomes'  => (int) ($this->db->fetch('SELECT COUNT(*) AS n FROM incomes')['n'] ?? 0),
             ];
-            $data['users']               = $allUsers;
+           $data['users']               = $allUsers;
             $data['stats']               = $stats;
             $data['current_admin_email'] = $this->currentUser()['email'];
+        } elseif ($page === 'share-accept') {
+            $token = trim((string) ($_GET['token'] ?? ''));
+            $share = $token !== '' ? $this->shareService->findByToken($token) : null;
+            $data['token'] = $token;
+            $data['share'] = $share;
+            if ($share !== null) {
+                $data['share_account'] = $this->accountService->findById((int) $share['account_id']);
+            }
         }
-
         $oldInputKey = $this->oldInputKey($page);
         $data['old'] = $_SESSION['old_input'][$oldInputKey] ?? [];
 
@@ -557,7 +613,15 @@ final class App
                 'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
                 'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
             ];
-            $_SESSION['flash_success'] = 'Connexion réussie.';
+           $_SESSION['flash_success'] = 'Connexion réussie.';
+
+            if (!empty($_SESSION['pending_share_token'])) {
+                $token = $_SESSION['pending_share_token'];
+                unset($_SESSION['pending_share_token']);
+                header('Location: /?page=share-accept&token=' . urlencode($token));
+                exit;
+            }
+
             header('Location: /?page=dashboard');
             exit;
         }
@@ -1046,13 +1110,114 @@ final class App
             exit;
         }
 
-        if ($this->accountService->delete($id)) {
+       if ($this->accountService->delete($id)) {
             $_SESSION['flash_success'] = 'Compte supprimé avec succès.';
         } else {
             $_SESSION['flash_error'] = 'Erreur lors de la suppression du compte.';
         }
 
         header('Location: /?page=accounts');
+        exit;
+    }
+
+    private function handleAccountShareInvite(int $accountId): void
+    {
+        $account = $this->accountService->findById($accountId);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        $invitedEmail = ValidationHelper::cleanEmail($_POST['invited_email'] ?? '');
+
+        if ($invitedEmail === '' || !ValidationHelper::validateEmail($invitedEmail)) {
+            $_SESSION['flash_error'] = 'Adresse email invalide.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        if (strcasecmp($invitedEmail, $this->currentUser()['email']) === 0) {
+            $_SESSION['flash_error'] = 'Vous ne pouvez pas partager un compte avec vous-même.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        if ($this->shareService->findPendingInvite($accountId, $invitedEmail) !== null) {
+            $_SESSION['flash_error'] = 'Une invitation est déjà en attente pour cette adresse.';
+            header('Location: /?page=account&id=' . $accountId);
+            exit;
+        }
+
+        try {
+            $token = $this->shareService->invite($accountId, $this->currentUser()['email'], $invitedEmail);
+
+            EmailHelper::sendShareInvitation(
+                $invitedEmail,
+                $this->currentUser()['full_name'] ?? $this->currentUser()['email'],
+                $account['short_name'],
+                $token
+            );
+
+            $_SESSION['flash_success'] = 'Invitation envoyée à ' . $invitedEmail . '.';
+        } catch (Exception $e) {
+            error_log('Share invite error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'Erreur lors de l\'envoi de l\'invitation.';
+        }
+
+        header('Location: /?page=account&id=' . $accountId);
+        exit;
+    }
+
+    private function handleAccountShareRevoke(int $accountId): void
+    {
+        $account = $this->accountService->findById($accountId);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
+        $shareId = (int) ($_POST['share_id'] ?? 0);
+
+        if ($this->shareService->revoke($shareId, $this->currentUser()['email'])) {
+            $_SESSION['flash_success'] = 'Partage révoqué.';
+        } else {
+            $_SESSION['flash_error'] = 'Erreur lors de la révocation du partage.';
+        }
+
+        header('Location: /?page=account&id=' . $accountId);
+        exit;
+    }
+
+    private function handleShareAccept(): void
+    {
+        if (!$this->isAuthenticated()) {
+            header('Location: /?page=login');
+            exit;
+        }
+
+        $token = trim((string) ($_POST['token'] ?? ''));
+        $share = $this->shareService->findByToken($token);
+
+        if ($share === null) {
+            $_SESSION['flash_error'] = 'Invitation introuvable ou déjà traitée.';
+            header('Location: /?page=dashboard');
+            exit;
+        }
+
+        if (strcasecmp($share['invited_email'], $this->currentUser()['email']) !== 0) {
+            $_SESSION['flash_error'] = 'Cette invitation a été envoyée à une autre adresse email.';
+            header('Location: /?page=dashboard');
+            exit;
+        }
+
+        if ($this->shareService->accept($token, $this->currentUser()['email'])) {
+            $_SESSION['flash_success'] = 'Vous avez maintenant accès à ce compte en lecture seule.';
+            header('Location: /?page=account&id=' . $share['account_id']);
+            exit;
+        }
+
+        $_SESSION['flash_error'] = 'Cette invitation n\'est plus valide.';
+        header('Location: /?page=dashboard');
         exit;
     }
 
