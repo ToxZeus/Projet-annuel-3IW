@@ -1708,27 +1708,27 @@ final class App
 
         $incomeTotal = 0.0;
         foreach ($incomes as $income) {
-    if ($this->occursInMonth($income, $month)) {
-        $incomeTotal += $this->exceptionService->getEffectiveAmount(
-            (float) $income['amount'],
-            'income',
-            (int) $income['id'],
-            $month
-        );
-    }
-}
+            if ($this->occursInMonth($income, $month)) {
+                $incomeTotal += $this->exceptionService->getEffectiveAmount(
+                    (float) $income['amount'],
+                    'income',
+                    (int) $income['id'],
+                    $month
+                );
+            }
+        }
 
-$expenseTotal = 0.0;
-foreach ($expenses as $expense) {
-    if ($this->occursInMonth($expense, $month)) {
-        $expenseTotal += $this->exceptionService->getEffectiveAmount(
-            (float) $expense['amount'],
-            'expense',
-            (int) $expense['id'],
-            $month
-        );
-    }
-}
+        $expenseTotal = 0.0;
+        foreach ($expenses as $expense) {
+            if ($this->occursInMonth($expense, $month)) {
+                $expenseTotal += $this->exceptionService->getEffectiveAmount(
+                    (float) $expense['amount'],
+                    'expense',
+                    (int) $expense['id'],
+                    $month
+                );
+            }
+        }
 
         $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', $month . '-01');
         $startBalance = $monthStart
