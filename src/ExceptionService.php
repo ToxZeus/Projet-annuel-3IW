@@ -80,7 +80,7 @@ final class ExceptionService
                 }
             } elseif ($freq === 'mensuel') {
                 return (float) $exc['amount'];
-            } elseif ($freq === 'periodique') {
+            } elseif ($freq === 'periodique' || $freq === 'periodic') {
                 $monthsInterval = (int) ($exc['frequency_months'] ?? 1);
                 if ($monthsInterval <= 0) $monthsInterval = 1;
                 $startMonthIndex  = (int) date('Y', strtotime($excStart)) * 12 + (int) date('n', strtotime($excStart));
