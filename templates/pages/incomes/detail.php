@@ -1,4 +1,11 @@
 <?php
+/** @var array $income */
+/** @var array $account */
+/** @var array $exceptions */
+/** @var bool $is_owner */
+/** @var array|null $old */
+/** @var string|null $success */
+/** @var string|null $error */
 $frequency = $old['frequency'] ?? ($income['frequency'] ?? 'ponctuel');
 $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? '');
 ?>
@@ -92,7 +99,6 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
     </article>
 </section>
 
-<?php if (!empty($exceptions)) : ?>
 <section class="section" style="padding-top: 0;">
     <div class="section-header">
         <div>
@@ -104,41 +110,31 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
         <?php endif; ?>
     </div>
 
-    <div class="accounts-grid">
-        <?php foreach ($exceptions as $exc) : ?>
-            <article class="account-card">
-                <h3><?= htmlspecialchars($exc['name'], ENT_QUOTES, 'UTF-8') ?></h3>
-                <p><?= htmlspecialchars($exc['description'], ENT_QUOTES, 'UTF-8') ?></p>
-                <div class="card-body">
-                    <dl>
-                        <dt>Montant exception</dt>
-                        <dd class="balance"><?= number_format((float) $exc['amount'], 2, ',', ' ') ?> €</dd>
-                        <dt>Fréquence</dt>
-                        <dd><?= htmlspecialchars($exc['frequency'], ENT_QUOTES, 'UTF-8') ?> <?= $exc['frequency_months'] ? '(' . $exc['frequency_months'] . ' mois)' : '' ?></dd>
-                        <dt>Début</dt>
-                        <dd><?= htmlspecialchars($exc['start_date'], ENT_QUOTES, 'UTF-8') ?></dd>
-                        <dt>Fin</dt>
-                        <dd><?= htmlspecialchars($exc['end_date'] ?? 'Indéfinie', ENT_QUOTES, 'UTF-8') ?></dd>
-                    </dl>
-                </div>
-                <div class="card-footer">
-                    <a class="link" href="/?page=exception&id=<?= $exc['id'] ?>">Voir / Éditer</a>
-                </div>
-            </article>
-        <?php endforeach; ?>
-    </div>
-</section>
-<?php else : ?>
-<section class="section" style="padding-top: 0;">
-    <div class="section-header">
-        <div>
-            <p class="eyebrow">Exceptions</p>
-            <h2>Exceptions liées à ce revenu</h2>
+    <?php if (empty($exceptions)) : ?>
+        <p class="empty-state">Aucune exception pour ce revenu.</p>
+    <?php else : ?>
+        <div class="accounts-grid">
+            <?php foreach ($exceptions as $exc) : ?>
+                <article class="account-card">
+                    <h3><?= htmlspecialchars($exc['name'], ENT_QUOTES, 'UTF-8') ?></h3>
+                    <p><?= htmlspecialchars($exc['description'], ENT_QUOTES, 'UTF-8') ?></p>
+                    <div class="card-body">
+                        <dl>
+                            <dt>Montant exception</dt>
+                            <dd class="balance"><?= number_format((float) $exc['amount'], 2, ',', ' ') ?> €</dd>
+                            <dt>Fréquence</dt>
+                            <dd><?= htmlspecialchars($exc['frequency'], ENT_QUOTES, 'UTF-8') ?> <?= $exc['frequency_months'] ? '(' . $exc['frequency_months'] . ' mois)' : '' ?></dd>
+                            <dt>Début</dt>
+                            <dd><?= htmlspecialchars($exc['start_date'], ENT_QUOTES, 'UTF-8') ?></dd>
+                            <dt>Fin</dt>
+                            <dd><?= htmlspecialchars($exc['end_date'] ?? 'Indéfinie', ENT_QUOTES, 'UTF-8') ?></dd>
+                        </dl>
+                    </div>
+                    <div class="card-footer">
+                        <a class="link" href="/?page=exception&id=<?= $exc['id'] ?>">Voir / Éditer</a>
+                    </div>
+                </article>
+            <?php endforeach; ?>
         </div>
-        <?php if (!empty($is_owner)) : ?>
-        <a class="button" href="/?page=exception-create&type=income&entity_id=<?= $income['id'] ?>">+ Nouvelle exception</a>
-        <?php endif; ?>
-    </div>
-    <p class="empty-state">Aucune exception pour ce revenu.</p>
+    <?php endif; ?>
 </section>
-<?php endif; ?>

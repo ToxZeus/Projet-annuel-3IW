@@ -1014,9 +1014,14 @@ final class App
             }
             $accounts = $this->accountService->findByUser($targetEmail);
             foreach ($accounts as $acc) {
+                $this->db->exec('DELETE FROM exceptions WHERE entity_id IN (SELECT id FROM expenses WHERE account_id = ?)', [$acc['id']]);
+                $this->db->exec('DELETE FROM exceptions WHERE entity_id IN (SELECT id FROM incomes WHERE account_id = ?)', [$acc['id']]);
                 $this->db->exec('DELETE FROM expenses WHERE account_id = ?', [$acc['id']]);
                 $this->db->exec('DELETE FROM incomes WHERE account_id = ?', [$acc['id']]);
+                $this->db->exec('DELETE FROM account_shares WHERE account_id = ?', [$acc['id']]);
             }
+            $this->db->exec('DELETE FROM account_shares WHERE owner_email = ?', [$targetEmail]);
+            $this->db->exec('DELETE FROM account_shares WHERE invited_email = ?', [$targetEmail]);
             $this->db->exec('DELETE FROM accounts WHERE user_email = ?', [$targetEmail]);
             $this->db->exec('DELETE FROM users WHERE email = ?', [$targetEmail]);
             $_SESSION['flash_success'] = 'Utilisateur supprimé.';
@@ -1864,33 +1869,6 @@ for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex 
 }
 
         return $total;
-    }
-
-    private function countMonthlyOccurrences(DateTimeImmutable $startDate, DateTimeImmutable $endDate, int $monthsInterval): int
-    {
-        $count = 0;
-        $startMonthIndex = ((int) $startDate->format('Y')) * 12 + ((int) $startDate->format('n'));
-        $endMonthIndex = ((int) $endDate->format('Y')) * 12 + ((int) $endDate->format('n'));
-        $startDay = (int) $startDate->format('j');
-
-        for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex += $monthsInterval) {
-            $year = intdiv($monthIndex - 1, 12);
-            $month = (($monthIndex - 1) % 12) + 1;
-            $monthStart = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
-            if (!$monthStart) {
-                continue;
-            }
-
-            $lastDay = (int) $monthStart->modify('last day of this month')->format('j');
-            $occurrenceDay = min($startDay, $lastDay);
-            $occurrenceDate = $monthStart->setDate($year, $month, $occurrenceDay);
-
-            if ($occurrenceDate >= $startDate && $occurrenceDate <= $endDate) {
-                $count++;
-            }
-        }
-
-        return $count;
     }
 
     private function render(string $template, array $data = []): string

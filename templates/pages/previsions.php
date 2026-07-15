@@ -1,8 +1,8 @@
 <section class="section">
     <div class="section-header">
         <div>
-            <p class="eyebrow">Previsions</p>
-            <h1>Previsions mensuelles</h1>
+            <p class="eyebrow">Prévisions</p>
+            <h1>Prévisions mensuelles</h1>
         </div>
     </div>
 

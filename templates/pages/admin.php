@@ -25,11 +25,11 @@
             <strong><?= (int) ($stats['total_accounts'] ?? 0) ?></strong>
         </article>
         <article class="stat">
-            <span class="stat-label">Depenses enregistrees</span>
+            <span class="stat-label">Dépenses enregistrées</span>
             <strong><?= (int) ($stats['total_expenses'] ?? 0) ?></strong>
         </article>
         <article class="stat">
-            <span class="stat-label">Revenus enregistres</span>
+            <span class="stat-label">Revenus enregistrés</span>
             <strong><?= (int) ($stats['total_incomes'] ?? 0) ?></strong>
         </article>
     </div>
@@ -42,7 +42,7 @@
         </div>
     </div>
     <?php if (empty($users)) : ?>
-        <p class="empty-state">Aucun utilisateur trouve.</p>
+        <p class="empty-state">Aucun utilisateur trouvé.</p>
     <?php else : ?>
         <article class="detail-card">
             <div class="forecast-table-wrap">
@@ -81,7 +81,7 @@
                                             <input type="hidden" name="action" value="set-plan">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="plan" value="free">
-                                            <button class="button button-secondary" type="submit">Retrograder</button>
+                                            <button class="button button-secondary" type="submit">Rétrograder</button>
                                         </form>
                                     <?php else : ?>
                                         <form method="post" action="/?page=admin">
@@ -96,7 +96,7 @@
                                             <input type="hidden" name="action" value="toggle-active">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <button class="button button-secondary" type="submit">
-                                                <?= $u['is_active'] ? 'Desactiver' : 'Activer' ?>
+                                                <?= $u['is_active'] ? 'Désactiver' : 'Activer' ?>
                                             </button>
                                         </form>
                                         <form method="post" action="/?page=admin" onsubmit="return confirm('Supprimer cet utilisateur ?')">
