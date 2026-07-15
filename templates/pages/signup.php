@@ -14,6 +14,7 @@
     <?php endif; ?>
 
     <form method="post" action="/?page=signup" class="auth-form">
+        <?= $csrf_field ?>
         <label>
             Email
             <input type="email" name="email" required value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

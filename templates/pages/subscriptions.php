@@ -56,6 +56,7 @@
                     <span class="notice notice-success">Vous etes premium.</span>
                 <?php else : ?>
                     <form method="post" action="/?page=subscription-checkout">
+                        <?= $csrf_field ?>
                         <button class="button" type="submit">Devenir premium</button>
                     </form>
                 <?php endif; ?>

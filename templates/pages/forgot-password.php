@@ -14,6 +14,7 @@
     <?php endif; ?>
 
     <form class="auth-form" method="post" action="/?page=forgot-password">
+        <?= $csrf_field ?>
         <label>
             Adresse email
             <input type="email" name="email" required autocomplete="email" placeholder="demo@budgie.local" value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

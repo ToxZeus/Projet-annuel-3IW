@@ -22,10 +22,12 @@ final class EmailHelper
         $activationUrl = getenv('APP_URL') ?: 'http://localhost:8000';
         $activationLink = $activationUrl . '/?page=activate&token=' . $token;
 
+        $safeFirstname = htmlspecialchars($firstname, ENT_QUOTES, 'UTF-8');
+
         $subject = 'Confirmez votre adresse email - Budgie';
         $htmlBody = "
             <h2>Bienvenue sur Budgie !</h2>
-            <p>Bonjour $firstname,</p>
+            <p>Bonjour $safeFirstname,</p>
             <p>Merci de vous être inscrit sur Budgie. Pour activer votre compte, veuillez cliquer sur le lien ci-dessous :</p>
             <p><a href=\"$activationLink\" style=\"background-color: #4CAF50; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Activer mon compte</a></p>
             <p>Ce lien expire dans 24 heures.</p>
@@ -43,10 +45,12 @@ final class EmailHelper
         $resetUrl = getenv('APP_URL') ?: 'http://localhost:8000';
         $resetLink = $resetUrl . '/?page=reset-password&token=' . $token;
 
+        $safeFirstname = htmlspecialchars($firstname, ENT_QUOTES, 'UTF-8');
+
         $subject = 'Réinitialiser votre mot de passe - Budgie';
         $htmlBody = "
             <h2>Réinitialisation de mot de passe</h2>
-            <p>Bonjour $firstname,</p>
+            <p>Bonjour $safeFirstname,</p>
             <p>Vous avez demandé la réinitialisation de votre mot de passe. Cliquez sur le lien ci-dessous :</p>
             <p><a href=\"$resetLink\" style=\"background-color: #2196F3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;\">Réinitialiser mon mot de passe</a></p>
             <p>Ce lien expire dans 15 minutes.</p>
