@@ -21,6 +21,7 @@
         <?php endif; ?>
 
         <form class="auth-form" method="post" action="/?page=reset-password">
+            <?= $csrf_field ?>
             <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
 
             <label>

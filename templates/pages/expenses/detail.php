@@ -23,6 +23,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
     <article class="detail-card">
         <?php if (!empty($is_owner)) : ?>
         <form method="post" action="/?page=expense&id=<?= $expense['id'] ?>" class="detail-form">
+            <?= $csrf_field ?>
             <input type="hidden" name="action" value="update">
 
             <label>
@@ -70,6 +71,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($expense['frequency_months'] ?? '
         </form>
 
         <form method="post" action="/?page=expense&id=<?= $expense['id'] ?>" class="danger-form" style="margin-top:18px;">
+            <?= $csrf_field ?>
             <input type="hidden" name="action" value="delete">
             <button class="button button-danger" type="submit" onclick="return confirm('Supprimer cette dépense ?')">Supprimer</button>
         </form>

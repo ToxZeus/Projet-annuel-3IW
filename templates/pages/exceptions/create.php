@@ -14,6 +14,7 @@
 
     <article class="detail-card">
         <form method="post" action="/?page=exception-create" class="detail-form">
+            <?= $csrf_field ?>
             <input type="hidden" name="entity_type" value="<?= htmlspecialchars($entity_type, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="entity_id" value="<?= (int) $entity_id ?>">
 

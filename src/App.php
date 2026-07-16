@@ -32,6 +32,12 @@ final class App
     {
         $page = $_GET['page'] ?? 'home';
 
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$this->isValidCsrfToken()) {
+            http_response_code(403);
+            echo 'Requête invalide (jeton CSRF manquant ou expiré).';
+            exit;
+        }
+
         if ($page === 'signup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleSignup();
             return;
@@ -502,6 +508,14 @@ final class App
                 http_response_code(404);
                 return;
             }
+            $owned = $exception['entity_type'] === 'income'
+                ? $this->incomeService->findById((int) $exception['entity_id'])
+                : $this->expenseService->findById((int) $exception['entity_id']);
+            $account = $owned ? $this->accountService->findById((int) $owned['account_id']) : null;
+            if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+                http_response_code(403);
+                return;
+            }
             $data['exception'] = $exception;
         } elseif ($page === 'admin') {
             $allUsers = $this->db->fetchAll(
@@ -603,38 +617,59 @@ final class App
         $email = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
 
-        $user = $this->userService->verifyCredentials($email, $password);
-        if ($user !== null) {
-            $_SESSION['user'] = [
-                'email' => $user['email'],
-                'full_name' => $user['full_name'],
-                'plan' => $user['plan'] ?? 'free',
-                'is_admin' => (bool) ($user['is_admin'] ?? false),
-                'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
-                'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
-            ];
-           $_SESSION['flash_success'] = 'Connexion réussie.';
+        $attemptsKey = 'login_attempts_' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        $_SESSION[$attemptsKey] ??= ['count' => 0, 'until' => 0];
 
-            if (!empty($_SESSION['pending_share_token'])) {
-                $token = $_SESSION['pending_share_token'];
-                unset($_SESSION['pending_share_token']);
-                header('Location: /?page=share-accept&token=' . urlencode($token));
-                exit;
-            }
-
-            header('Location: /?page=dashboard');
+        if ($_SESSION[$attemptsKey]['until'] > time()) {
+            $_SESSION['flash_error'] = 'Trop de tentatives. Réessayez dans quelques minutes.';
+            header('Location: /?page=login');
             exit;
         }
 
-        $_SESSION['flash_error'] = 'Identifiants invalides.';
-        $this->flashOldInput('login', ['email' => $email]);
-        header('Location: /?page=login');
+        $user = $this->userService->verifyCredentials($email, $password);
+
+        if ($user === null) {
+            $_SESSION[$attemptsKey]['count']++;
+            if ($_SESSION[$attemptsKey]['count'] >= 5) {
+                $_SESSION[$attemptsKey]['until'] = time() + 900;
+                $_SESSION[$attemptsKey]['count'] = 0;
+            }
+            $_SESSION['flash_error'] = 'Identifiants invalides.';
+            $this->flashOldInput('login', ['email' => $email]);
+            header('Location: /?page=login');
+            exit;
+        }
+
+        unset($_SESSION[$attemptsKey]);
+        session_regenerate_id(true);
+
+        $_SESSION['user'] = [
+            'email' => $user['email'],
+            'full_name' => $user['full_name'],
+            'plan' => $user['plan'] ?? 'free',
+            'is_admin' => (bool) ($user['is_admin'] ?? false),
+            'stripe_customer_id' => $user['stripe_customer_id'] ?? null,
+            'stripe_subscription_id' => $user['stripe_subscription_id'] ?? null,
+        ];
+        $_SESSION['flash_success'] = 'Connexion réussie.';
+
+        if (!empty($_SESSION['pending_share_token'])) {
+            $token = $_SESSION['pending_share_token'];
+            unset($_SESSION['pending_share_token']);
+            header('Location: /?page=share-accept&token=' . urlencode($token));
+            exit;
+        }
+
+        header('Location: /?page=dashboard');
         exit;
     }
 
     private function handleLogout(): void
     {
-        unset($_SESSION['user']);
+        $_SESSION = [];
+        session_destroy();
+        session_start();
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         $_SESSION['flash_success'] = 'Déconnexion réussie.';
         header('Location: /?page=login');
         exit;
@@ -902,8 +937,27 @@ final class App
 
     private function handleExceptionCreate(): void
     {
+        if (!$this->isAuthenticated()) {
+            http_response_code(403);
+            exit;
+        }
+
         $type        = trim((string) ($_POST['entity_type'] ?? 'expense'));
         $entityId    = (int) ($_POST['entity_id'] ?? 0);
+
+        $owned = $type === 'income'
+            ? $this->incomeService->findById($entityId)
+            : $this->expenseService->findById($entityId);
+        if (!$owned) {
+            http_response_code(404);
+            exit;
+        }
+        $account = $this->accountService->findById((int) $owned['account_id']);
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
         $name        = trim((string) ($_POST['name'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
         $amount      = (float) ($_POST['amount'] ?? 0);
@@ -927,9 +981,23 @@ final class App
 
     private function handleExceptionUpdate(int $id): void
     {
+        if (!$this->isAuthenticated()) {
+            http_response_code(403);
+            exit;
+        }
+
         $exception = $this->exceptionService->findById($id);
         if (!$exception) {
             http_response_code(404);
+            exit;
+        }
+
+        $owned = $exception['entity_type'] === 'income'
+            ? $this->incomeService->findById((int) $exception['entity_id'])
+            : $this->expenseService->findById((int) $exception['entity_id']);
+        $account = $owned ? $this->accountService->findById((int) $owned['account_id']) : null;
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
             exit;
         }
 
@@ -940,7 +1008,6 @@ final class App
         $frequencyMonths = isset($_POST['frequency_months']) && $_POST['frequency_months'] !== '' ? (int) $_POST['frequency_months'] : null;
         $startDate   = trim((string) ($_POST['start_date'] ?? date('Y-m-d')));
         $endDate     = trim((string) ($_POST['end_date'] ?? '')) ?: null;
-
         if (empty($name) || $amount <= 0) {
             $_SESSION['flash_error'] = 'Le nom et le montant sont obligatoires.';
             header('Location: /?page=exception&id=' . $id);
@@ -955,6 +1022,11 @@ final class App
 
     private function handleExceptionDelete(int $id): void
     {
+        if (!$this->isAuthenticated()) {
+            http_response_code(403);
+            exit;
+        }
+
         $exception = $this->exceptionService->findById($id);
         if (!$exception) {
             http_response_code(404);
@@ -963,6 +1035,16 @@ final class App
 
         $type     = $exception['entity_type'];
         $entityId = $exception['entity_id'];
+
+        $owned = $type === 'income'
+            ? $this->incomeService->findById((int) $entityId)
+            : $this->expenseService->findById((int) $entityId);
+        $account = $owned ? $this->accountService->findById((int) $owned['account_id']) : null;
+        if (!$account || $account['user_email'] !== $this->currentUser()['email']) {
+            http_response_code(403);
+            exit;
+        }
+
         $this->exceptionService->delete($id);
         $_SESSION['flash_success'] = 'Exception supprimée.';
         $redirectPage = $type === 'income' ? 'income' : 'expense';
@@ -1467,7 +1549,6 @@ final class App
         header('Location: /?page=income&id=' . $id);
         exit;
     }
-
     private function handleIncomeDelete(int $id): void
     {
         $income = $this->incomeService->findById($id);
@@ -1595,6 +1676,19 @@ final class App
     private function isAuthenticated(): bool
     {
         return isset($_SESSION['user']);
+    }
+
+    private function isValidCsrfToken(): bool
+    {
+        $sessionToken = $_SESSION['csrf_token'] ?? '';
+        $sentToken = $_POST['csrf_token'] ?? '';
+        return $sessionToken !== '' && hash_equals($sessionToken, $sentToken);
+    }
+
+    private function csrfField(): string
+    {
+        $token = htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
+        return '<input type="hidden" name="csrf_token" value="' . $token . '">';
     }
 
     private function currentUser(): ?array
@@ -1873,6 +1967,7 @@ for ($monthIndex = $startMonthIndex; $monthIndex <= $endMonthIndex; $monthIndex 
 
     private function render(string $template, array $data = []): string
     {
+        $data['csrf_field'] = $data['csrf_field'] ?? $this->csrfField();
         extract($data, EXTR_SKIP);
 
         ob_start();

@@ -14,7 +14,18 @@ if (file_exists($envFile)) {
 }
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-	session_start();
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'secure' => (getenv('APP_ENV') ?: 'dev') === 'prod',
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 require BASE_PATH . '/src/App.php';

@@ -78,6 +78,7 @@
                                 <td style="display:flex; gap:6px; flex-wrap:wrap;">
                                     <?php if ($u['plan'] === 'paid') : ?>
                                         <form method="post" action="/?page=admin">
+                                            <?= $csrf_field ?>
                                             <input type="hidden" name="action" value="set-plan">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="plan" value="free">
@@ -85,6 +86,7 @@
                                         </form>
                                     <?php else : ?>
                                         <form method="post" action="/?page=admin">
+                                            <?= $csrf_field ?>
                                             <input type="hidden" name="action" value="set-plan">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="plan" value="paid">
@@ -93,6 +95,7 @@
                                     <?php endif; ?>
                                     <?php if ((string) $u['email'] !== (string) ($current_admin_email ?? '')) : ?>
                                         <form method="post" action="/?page=admin" onsubmit="return confirm('Confirmer ?')">
+                                            <?= $csrf_field ?>
                                             <input type="hidden" name="action" value="toggle-active">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <button class="button button-secondary" type="submit">
@@ -100,6 +103,7 @@
                                             </button>
                                         </form>
                                         <form method="post" action="/?page=admin" onsubmit="return confirm('Supprimer cet utilisateur ?')">
+                                            <?= $csrf_field ?>
                                             <input type="hidden" name="action" value="delete-user">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <button class="button button-danger" type="submit">Supprimer</button>
