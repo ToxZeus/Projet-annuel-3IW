@@ -15,8 +15,8 @@ final class ValidationHelper
 
     public static function validatePassword(string $password): bool
     {
-        // Au moins 8 caractères, 1 minuscule, 1 majuscule, 1 chiffre, 1 caractère spécial
-        return preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/', $password) === 1;
+        // Au moins 8 caractères, 1 minuscule, 1 majuscule, 1 chiffre, 1 caractère spécial (n'importe lequel)
+        return preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/', $password) === 1;
     }
 
     public static function validateMinLength(string $value, int $min): bool
@@ -26,9 +26,8 @@ final class ValidationHelper
 
     public static function cleanName(string $name): string
     {
-        $cleanName = trim(strip_tags($name));
-
-        return ucfirst(strtolower($cleanName));
+        // On préserve la casse saisie : strtolower/ucfirst cassait les noms composés et accentués
+        return trim(strip_tags($name));
     }
 
     public static function sanitizeString(string $str): string

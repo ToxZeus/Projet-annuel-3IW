@@ -20,8 +20,7 @@
             <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
 
-        <form class="auth-form" method="post" action="/?page=reset-password">
-            <?= $csrf_field ?>
+        <form class="auth-form" method="post" action="/?page=reset-password"><?= CsrfHelper::field() ?>
             <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
 
             <label>

@@ -13,8 +13,7 @@
     <?php endif; ?>
 
     <article class="detail-card">
-        <form method="post" action="/?page=exception-create" class="detail-form">
-            <?= $csrf_field ?>
+        <form method="post" action="/?page=exception-create" class="detail-form"><?= CsrfHelper::field() ?>
             <input type="hidden" name="entity_type" value="<?= htmlspecialchars($entity_type, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="entity_id" value="<?= (int) $entity_id ?>">
 

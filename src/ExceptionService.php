@@ -3,16 +3,24 @@ declare(strict_types=1);
 
 final class ExceptionService
 {
+    /** @var array<string, array> Cache par requête HTTP pour éviter de relire les mêmes exceptions (prévisions : 12 mois × N entrées) */
+    private array $entityCache = [];
+
     public function __construct(private Database $db)
     {
     }
 
     public function findByEntity(string $type, int $entityId): array
     {
-        return $this->db->fetchAll(
-            'SELECT * FROM exceptions WHERE entity_type = ? AND entity_id = ? ORDER BY start_date ASC',
-            [$type, $entityId]
-        );
+        $cacheKey = $type . ':' . $entityId;
+        if (!isset($this->entityCache[$cacheKey])) {
+            $this->entityCache[$cacheKey] = $this->db->fetchAll(
+                'SELECT * FROM exceptions WHERE entity_type = ? AND entity_id = ? ORDER BY start_date ASC',
+                [$type, $entityId]
+            );
+        }
+
+        return $this->entityCache[$cacheKey];
     }
 
     public function findById(int $id): ?array
@@ -36,6 +44,8 @@ final class ExceptionService
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [$type, $entityId, $name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate]
         );
+        $this->entityCache = [];
+
         return (int) $this->db->lastInsertId();
     }
 
@@ -49,6 +59,8 @@ final class ExceptionService
         string $startDate,
         ?string $endDate
     ): bool {
+        $this->entityCache = [];
+
         return $this->db->exec(
             'UPDATE exceptions SET name = ?, description = ?, amount = ?, frequency = ?, frequency_months = ?, start_date = ?, end_date = ? WHERE id = ?',
             [$name, $description, $amount, $frequency, $frequencyMonths, $startDate, $endDate, $id]
@@ -57,6 +69,8 @@ final class ExceptionService
 
     public function delete(int $id): bool
     {
+        $this->entityCache = [];
+
         return $this->db->exec('DELETE FROM exceptions WHERE id = ?', [$id]) > 0;
     }
 

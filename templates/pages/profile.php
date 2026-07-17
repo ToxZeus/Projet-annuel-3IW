@@ -17,8 +17,7 @@
     <div class="detail-grid">
         <article class="detail-card">
             <h2>Informations personnelles</h2>
-            <form method="post" action="/?page=profile" class="detail-form">
-                <?= $csrf_field ?>
+            <form method="post" action="/?page=profile" class="detail-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="update-name">
 
                 <label>
@@ -37,8 +36,7 @@
 
         <article class="detail-card">
             <h2>Mot de passe</h2>
-            <form method="post" action="/?page=profile" class="detail-form">
-                <?= $csrf_field ?>
+            <form method="post" action="/?page=profile" class="detail-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="update-password">
 
                 <label>
@@ -76,13 +74,11 @@
             </div>
 
             <?php if (($user['plan'] ?? 'free') === 'paid') : ?>
-                <form method="post" action="/?page=subscription-cancel" class="detail-form">
-                    <?= $csrf_field ?>
+                <form method="post" action="/?page=subscription-cancel" class="detail-form"><?= CsrfHelper::field() ?>
                     <button class="button button-danger" type="submit">Résilier premium</button>
                 </form>
             <?php else : ?>
-                <form method="post" action="/?page=subscription-checkout" class="detail-form">
-                    <?= $csrf_field ?>
+                <form method="post" action="/?page=subscription-checkout" class="detail-form"><?= CsrfHelper::field() ?>
                     <button class="button" type="submit">Souscrire à premium</button>
                 </form>
             <?php endif; ?>

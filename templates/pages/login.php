@@ -10,8 +10,7 @@
         <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
-    <form class="auth-form" method="post" action="/?page=login">
-        <?= $csrf_field ?>
+    <form class="auth-form" method="post" action="/?page=login"><?= CsrfHelper::field() ?>
         <label>
             Adresse email
             <input type="email" name="email" required autocomplete="email" placeholder="demo@budgie.local" value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

@@ -15,24 +15,20 @@ if (file_exists($envFile)) {
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'secure' => (getenv('APP_ENV') ?: 'dev') === 'prod',
         'httponly' => true,
         'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
     ]);
     session_start();
-}
-
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
 require BASE_PATH . '/src/App.php';
 require BASE_PATH . '/src/Database.php';
 require BASE_PATH . '/src/ValidationHelper.php';
 require BASE_PATH . '/src/Helpers/EmailHelper.php';
+require BASE_PATH . '/src/Helpers/CsrfHelper.php';
 require BASE_PATH . '/src/UserService.php';
+require BASE_PATH . '/src/ThrottleService.php';
 require BASE_PATH . '/src/AccountService.php';
 require BASE_PATH . '/src/ExpenseService.php';
 require BASE_PATH . '/src/IncomeService.php';

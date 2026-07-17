@@ -13,8 +13,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? '';
     </div>
 
     <article class="detail-card">
-        <form method="post" action="/?page=expenses" class="detail-form">
-            <?= $csrf_field ?>
+        <form method="post" action="/?page=expenses" class="detail-form"><?= CsrfHelper::field() ?>
             <input type="hidden" name="account_id" value="<?= $account['id'] ?>">
 
             <label>
