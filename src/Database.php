@@ -21,6 +21,7 @@ final class Database
             null,
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
+        $this->connection->exec('PRAGMA foreign_keys = ON');
 
         return $this->connection;
     }
@@ -139,7 +140,22 @@ final class Database
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
         ');
-    
+
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS auth_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                identifier TEXT NOT NULL,
+                attempted_at TEXT NOT NULL
+            )
+        ');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_auth_attempts_identifier ON auth_attempts(identifier)');
+
+        $pdo->exec('
+            CREATE TABLE IF NOT EXISTS app_meta (
+                meta_key TEXT PRIMARY KEY,
+                meta_value TEXT
+            )
+        ');
     }
 
     public function query(string $sql, array $params = []): PDOStatement

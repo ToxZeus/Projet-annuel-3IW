@@ -13,7 +13,7 @@
         <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
     <?php endif; ?>
 
-    <form method="post" action="/?page=signup" class="auth-form">
+    <form method="post" action="/?page=signup" class="auth-form"><?= CsrfHelper::field() ?>
         <label>
             Email
             <input type="email" name="email" required value="<?= htmlspecialchars($old['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">

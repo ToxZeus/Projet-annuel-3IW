@@ -14,14 +14,21 @@ if (file_exists($envFile)) {
 }
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
-	session_start();
+    session_set_cookie_params([
+        'httponly' => true,
+        'samesite' => 'Lax',
+        'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    ]);
+    session_start();
 }
 
 require BASE_PATH . '/src/App.php';
 require BASE_PATH . '/src/Database.php';
 require BASE_PATH . '/src/ValidationHelper.php';
 require BASE_PATH . '/src/Helpers/EmailHelper.php';
+require BASE_PATH . '/src/Helpers/CsrfHelper.php';
 require BASE_PATH . '/src/UserService.php';
+require BASE_PATH . '/src/ThrottleService.php';
 require BASE_PATH . '/src/AccountService.php';
 require BASE_PATH . '/src/ExpenseService.php';
 require BASE_PATH . '/src/IncomeService.php';

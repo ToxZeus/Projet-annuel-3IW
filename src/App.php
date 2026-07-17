@@ -14,6 +14,7 @@ final class App
     private IncomeService $incomeService;
     private ExceptionService $exceptionService;
     private ShareService $shareService;
+    private ThrottleService $throttleService;
 
     public function __construct()
     {
@@ -25,12 +26,28 @@ final class App
         $this->incomeService = new IncomeService($this->db);
         $this->exceptionService = new ExceptionService($this->db);
         $this->shareService = new ShareService($this->db);
+        $this->throttleService = new ThrottleService($this->db);
         $this->seedDemoExpenses();
     }
 
     public function run(): void
     {
-        $page = $_GET['page'] ?? 'home';
+        $page = (string) ($_GET['page'] ?? 'home');
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!CsrfHelper::validate($_POST['_csrf'] ?? null)) {
+                $_SESSION['flash_error'] = 'Session expirée ou formulaire invalide. Veuillez réessayer.';
+                header('Location: /?page=' . urlencode($page));
+                exit;
+            }
+
+            $publicPostPages = ['signup', 'login', 'forgot-password', 'reset-password'];
+            if (!in_array($page, $publicPostPages, true) && !$this->isAuthenticated()) {
+                $_SESSION['flash_error'] = 'Vous devez être connecté.';
+                header('Location: /?page=login');
+                exit;
+            }
+        }
 
         if ($page === 'signup' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $this->handleSignup();
@@ -494,11 +511,15 @@ final class App
         } elseif ($page === 'exception-create') {
             $type     = trim((string) ($_GET['type'] ?? 'expense'));
             $entityId = (int) ($_GET['entity_id'] ?? 0);
+            if (!in_array($type, ['expense', 'income'], true) || !$this->userOwnsExceptionEntity($type, $entityId)) {
+                http_response_code(404);
+                return;
+            }
             $data['entity_type'] = $type;
             $data['entity_id']   = $entityId;
         } elseif ($page === 'exception' && isset($_GET['id'])) {
             $exception = $this->exceptionService->findById((int) $_GET['id']);
-            if (!$exception) {
+            if (!$exception || !$this->userOwnsExceptionEntity((string) $exception['entity_type'], (int) $exception['entity_id'])) {
                 http_response_code(404);
                 return;
             }
@@ -600,11 +621,21 @@ final class App
 
     private function handleLogin(): void
     {
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = ValidationHelper::cleanEmail($_POST['email'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
+
+        $throttleKey = 'login|' . $email . '|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        if ($this->throttleService->tooManyAttempts($throttleKey, 5, 15)) {
+            $_SESSION['flash_error'] = 'Trop de tentatives de connexion. Réessayez dans 15 minutes.';
+            $this->flashOldInput('login', ['email' => $email]);
+            header('Location: /?page=login');
+            exit;
+        }
 
         $user = $this->userService->verifyCredentials($email, $password);
         if ($user !== null) {
+            $this->throttleService->clear($throttleKey);
+            session_regenerate_id(true);
             $_SESSION['user'] = [
                 'email' => $user['email'],
                 'full_name' => $user['full_name'],
@@ -626,6 +657,7 @@ final class App
             exit;
         }
 
+        $this->throttleService->hit($throttleKey);
         $_SESSION['flash_error'] = 'Identifiants invalides.';
         $this->flashOldInput('login', ['email' => $email]);
         header('Location: /?page=login');
@@ -854,6 +886,14 @@ final class App
             exit;
         }
 
+        $throttleKey = 'forgot|' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+        if ($this->throttleService->tooManyAttempts($throttleKey, 5, 15)) {
+            $_SESSION['flash_error'] = 'Trop de demandes. Réessayez dans 15 minutes.';
+            header('Location: /?page=forgot-password');
+            exit;
+        }
+        $this->throttleService->hit($throttleKey);
+
         $result = $this->userService->generateResetToken($email);
         if ($result) {
             $user = $this->userService->findByEmail($email);
@@ -904,6 +944,12 @@ final class App
     {
         $type        = trim((string) ($_POST['entity_type'] ?? 'expense'));
         $entityId    = (int) ($_POST['entity_id'] ?? 0);
+
+        if (!in_array($type, ['expense', 'income'], true) || !$this->userOwnsExceptionEntity($type, $entityId)) {
+            http_response_code(403);
+            exit;
+        }
+
         $name        = trim((string) ($_POST['name'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
         $amount      = (float) ($_POST['amount'] ?? 0);
@@ -933,6 +979,11 @@ final class App
             exit;
         }
 
+        if (!$this->userOwnsExceptionEntity((string) $exception['entity_type'], (int) $exception['entity_id'])) {
+            http_response_code(403);
+            exit;
+        }
+
         $name        = trim((string) ($_POST['name'] ?? ''));
         $description = trim((string) ($_POST['description'] ?? ''));
         $amount      = (float) ($_POST['amount'] ?? 0);
@@ -958,6 +1009,11 @@ final class App
         $exception = $this->exceptionService->findById($id);
         if (!$exception) {
             http_response_code(404);
+            exit;
+        }
+
+        if (!$this->userOwnsExceptionEntity((string) $exception['entity_type'], (int) $exception['entity_id'])) {
+            http_response_code(403);
             exit;
         }
 
@@ -1014,15 +1070,10 @@ final class App
             }
             $accounts = $this->accountService->findByUser($targetEmail);
             foreach ($accounts as $acc) {
-                $this->db->exec('DELETE FROM exceptions WHERE entity_id IN (SELECT id FROM expenses WHERE account_id = ?)', [$acc['id']]);
-                $this->db->exec('DELETE FROM exceptions WHERE entity_id IN (SELECT id FROM incomes WHERE account_id = ?)', [$acc['id']]);
-                $this->db->exec('DELETE FROM expenses WHERE account_id = ?', [$acc['id']]);
-                $this->db->exec('DELETE FROM incomes WHERE account_id = ?', [$acc['id']]);
-                $this->db->exec('DELETE FROM account_shares WHERE account_id = ?', [$acc['id']]);
+                $this->accountService->delete((int) $acc['id']);
             }
             $this->db->exec('DELETE FROM account_shares WHERE owner_email = ?', [$targetEmail]);
             $this->db->exec('DELETE FROM account_shares WHERE invited_email = ?', [$targetEmail]);
-            $this->db->exec('DELETE FROM accounts WHERE user_email = ?', [$targetEmail]);
             $this->db->exec('DELETE FROM users WHERE email = ?', [$targetEmail]);
             $_SESSION['flash_success'] = 'Utilisateur supprimé.';
         } else {
@@ -1531,8 +1582,18 @@ final class App
         $this->db->exec('UPDATE users SET plan = ? WHERE email = ?', ['free', 'demo@budgie.local']);
     }
 
+    private function markDemoSeeded(): void
+    {
+        $this->db->exec("INSERT OR REPLACE INTO app_meta (meta_key, meta_value) VALUES ('demo_seeded', '1')");
+    }
+
     private function seedDemoExpenses(): void
     {
+        // Garde-fou : ne tourne qu'une fois, pas à chaque requête HTTP (et ne re-seede pas si la démo vide ses données)
+        if ($this->db->fetch("SELECT meta_value FROM app_meta WHERE meta_key = 'demo_seeded'") !== null) {
+            return;
+        }
+
         $user = $this->userService->findByEmail('demo@budgie.local');
         if (!$user) {
             return;
@@ -1551,6 +1612,7 @@ final class App
         }
 
         if ($totalExpenses > 0) {
+            $this->markDemoSeeded();
             return;
         }
 
@@ -1590,6 +1652,8 @@ final class App
                 $expense['end_date']
             );
         }
+
+        $this->markDemoSeeded();
     }
 
     private function isAuthenticated(): bool
@@ -1616,6 +1680,26 @@ final class App
         $storedUser = $this->userService->findByEmail((string) $user['email']);
 
         return ($storedUser['plan'] ?? 'free') !== 'paid';
+    }
+
+    private function exceptionEntityAccount(string $type, int $entityId): ?array
+    {
+        $entity = $type === 'income'
+            ? $this->incomeService->findById($entityId)
+            : $this->expenseService->findById($entityId);
+
+        if ($entity === null) {
+            return null;
+        }
+
+        return $this->accountService->findById((int) $entity['account_id']);
+    }
+
+    private function userOwnsExceptionEntity(string $type, int $entityId): bool
+    {
+        $account = $this->exceptionEntityAccount($type, $entityId);
+
+        return $account !== null && $account['user_email'] === ($this->currentUser()['email'] ?? null);
     }
 
     private function createStripeCheckoutSession(string $secretKey, array $params): array

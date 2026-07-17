@@ -27,7 +27,7 @@
             </p>
             <p><?= htmlspecialchars($share_account['description'] ?? '', ENT_QUOTES, 'UTF-8') ?></p>
 
-            <form method="post" action="/?page=share-accept">
+            <form method="post" action="/?page=share-accept"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
                 <button class="button" type="submit">Accepter l'invitation</button>
             </form>

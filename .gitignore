@@ -7,3 +7,8 @@
 .DS_Store
 Thumbs.db
 /data/*.db
+*.zip
+
+# Fiches de revision soutenance : branche locale dediee uniquement, ne pas pusher
+/templates/pages/revision.php
+/templates/pages/revision/

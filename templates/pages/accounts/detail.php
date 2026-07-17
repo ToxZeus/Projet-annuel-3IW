@@ -42,7 +42,7 @@
         <article class="detail-card">
             <h2>Informations</h2>
             <?php if (!empty($is_owner)) : ?>
-            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form">
+            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="update">
 
                 <label>
@@ -90,7 +90,7 @@
         <article class="detail-card">
             <h2>Partage</h2>
             <p>Invitez quelqu'un à consulter ce compte en lecture seule.</p>
-            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form">
+            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="detail-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="share">
                 <label>
                     Adresse email
@@ -115,7 +115,7 @@
                                     <td><?= htmlspecialchars($share['invited_email'], ENT_QUOTES, 'UTF-8') ?></td>
                                     <td><?= $share['status'] === 'accepted' ? 'Accepté' : 'En attente' ?></td>
                                     <td>
-                                        <form method="post" action="/?page=account&id=<?= $account['id'] ?>" onsubmit="return confirm('Révoquer ce partage ?')">
+                                        <form method="post" action="/?page=account&id=<?= $account['id'] ?>" onsubmit="return confirm('Révoquer ce partage ?')"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="share-revoke">
                                             <input type="hidden" name="share_id" value="<?= $share['id'] ?>">
                                             <button class="button button-secondary" type="submit">Révoquer</button>
@@ -134,7 +134,7 @@
         <article class="detail-card danger">
             <h2>Danger</h2>
             <p>Une fois supprimé, le compte et tous ses données (dépenses, revenus) seront perdus.</p>
-            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="danger-form">
+            <form method="post" action="/?page=account&id=<?= $account['id'] ?>" class="danger-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="delete">
                 <button class="button button-danger" type="submit" onclick="return confirm('Êtes-vous sûr de vouloir supprimer ce compte ?')">Supprimer le compte</button>
             </form>

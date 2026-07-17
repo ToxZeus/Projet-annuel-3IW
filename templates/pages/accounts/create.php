@@ -12,7 +12,7 @@
     <?php endif; ?>
 
     <article class="detail-card">
-        <form method="post" action="/?page=accounts" class="detail-form">
+        <form method="post" action="/?page=accounts" class="detail-form"><?= CsrfHelper::field() ?>
             <label>
                 Nom court
                 <input type="text" name="short_name" required placeholder="Ex. Compte courant">

@@ -45,6 +45,18 @@ final class AccountService
 
     public function delete(int $id): bool
     {
+        $this->db->exec(
+            "DELETE FROM exceptions WHERE entity_type = 'expense' AND entity_id IN (SELECT id FROM expenses WHERE account_id = ?)",
+            [$id]
+        );
+        $this->db->exec(
+            "DELETE FROM exceptions WHERE entity_type = 'income' AND entity_id IN (SELECT id FROM incomes WHERE account_id = ?)",
+            [$id]
+        );
+        $this->db->exec('DELETE FROM expenses WHERE account_id = ?', [$id]);
+        $this->db->exec('DELETE FROM incomes WHERE account_id = ?', [$id]);
+        $this->db->exec('DELETE FROM account_shares WHERE account_id = ?', [$id]);
+
         return $this->db->exec('DELETE FROM accounts WHERE id = ?', [$id]) > 0;
     }
 

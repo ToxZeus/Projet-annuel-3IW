@@ -19,7 +19,7 @@ final class EmailHelper
     public static function sendActivation(string $email, string $firstname, string $token): bool
     {
         $config = self::getMailer();
-        $activationUrl = getenv('APP_URL') ?: 'http://localhost:8000';
+        $activationUrl = getenv('APP_URL') ?: 'http://localhost:8080';
         $activationLink = $activationUrl . '/?page=activate&token=' . $token;
 
         $subject = 'Confirmez votre adresse email - Budgie';
@@ -40,7 +40,7 @@ final class EmailHelper
     public static function sendPasswordReset(string $email, string $firstname, string $token): bool
     {
         $config = self::getMailer();
-        $resetUrl = getenv('APP_URL') ?: 'http://localhost:8000';
+        $resetUrl = getenv('APP_URL') ?: 'http://localhost:8080';
         $resetLink = $resetUrl . '/?page=reset-password&token=' . $token;
 
         $subject = 'Réinitialiser votre mot de passe - Budgie';
@@ -59,7 +59,7 @@ final class EmailHelper
     }
         public static function sendShareInvitation(string $email, string $ownerName, string $accountName, string $token): bool
     {
-        $appUrl = getenv('APP_URL') ?: 'http://localhost:8000';
+        $appUrl = getenv('APP_URL') ?: 'http://localhost:8080';
         $acceptLink = $appUrl . '/?page=share-accept&token=' . $token;
 
         $subject = $ownerName . ' partage un compte Budgie avec vous';

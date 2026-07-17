@@ -57,6 +57,8 @@ final class IncomeService
 
     public function delete(int $id): bool
     {
+        $this->db->exec("DELETE FROM exceptions WHERE entity_type = 'income' AND entity_id = ?", [$id]);
+
         return $this->db->exec('DELETE FROM incomes WHERE id = ?', [$id]) > 0;
     }
 }

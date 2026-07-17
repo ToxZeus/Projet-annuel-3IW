@@ -29,7 +29,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
 
     <article class="detail-card">
         <?php if (!empty($is_owner)) : ?>
-        <form method="post" action="/?page=income&id=<?= $income['id'] ?>" class="detail-form">
+        <form method="post" action="/?page=income&id=<?= $income['id'] ?>" class="detail-form"><?= CsrfHelper::field() ?>
             <input type="hidden" name="action" value="update">
 
             <label>
@@ -76,7 +76,7 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
             <button class="button" type="submit">Mettre à jour</button>
         </form>
 
-        <form method="post" action="/?page=income&id=<?= $income['id'] ?>" class="danger-form" style="margin-top:18px;">
+        <form method="post" action="/?page=income&id=<?= $income['id'] ?>" class="danger-form" style="margin-top:18px;"><?= CsrfHelper::field() ?>
             <input type="hidden" name="action" value="delete">
             <button class="button button-danger" type="submit" onclick="return confirm('Supprimer ce revenu ?')">Supprimer</button>
         </form>

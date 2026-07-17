@@ -77,14 +77,14 @@
                                 <td><?= (int) ($u['nb_accounts'] ?? 0) ?></td>
                                 <td style="display:flex; gap:6px; flex-wrap:wrap;">
                                     <?php if ($u['plan'] === 'paid') : ?>
-                                        <form method="post" action="/?page=admin">
+                                        <form method="post" action="/?page=admin"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="set-plan">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="plan" value="free">
                                             <button class="button button-secondary" type="submit">Rétrograder</button>
                                         </form>
                                     <?php else : ?>
-                                        <form method="post" action="/?page=admin">
+                                        <form method="post" action="/?page=admin"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="set-plan">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <input type="hidden" name="plan" value="paid">
@@ -92,14 +92,14 @@
                                         </form>
                                     <?php endif; ?>
                                     <?php if ((string) $u['email'] !== (string) ($current_admin_email ?? '')) : ?>
-                                        <form method="post" action="/?page=admin" onsubmit="return confirm('Confirmer ?')">
+                                        <form method="post" action="/?page=admin" onsubmit="return confirm('Confirmer ?')"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="toggle-active">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <button class="button button-secondary" type="submit">
                                                 <?= $u['is_active'] ? 'Désactiver' : 'Activer' ?>
                                             </button>
                                         </form>
-                                        <form method="post" action="/?page=admin" onsubmit="return confirm('Supprimer cet utilisateur ?')">
+                                        <form method="post" action="/?page=admin" onsubmit="return confirm('Supprimer cet utilisateur ?')"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="delete-user">
                                             <input type="hidden" name="target_email" value="<?= htmlspecialchars((string) $u['email'], ENT_QUOTES, 'UTF-8') ?>">
                                             <button class="button button-danger" type="submit">Supprimer</button>

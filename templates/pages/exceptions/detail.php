@@ -19,7 +19,7 @@
     <div class="detail-grid">
         <article class="detail-card">
             <h2>Modifier l'exception</h2>
-            <form method="post" action="/?page=exception&id=<?= $exception['id'] ?>" class="detail-form">
+            <form method="post" action="/?page=exception&id=<?= $exception['id'] ?>" class="detail-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="update">
 
                 <label>
@@ -68,7 +68,7 @@
         <article class="detail-card danger">
             <h2>Danger</h2>
             <p>Supprimer cette exception restaurera le montant original pour les périodes concernées.</p>
-            <form method="post" action="/?page=exception&id=<?= $exception['id'] ?>" class="danger-form">
+            <form method="post" action="/?page=exception&id=<?= $exception['id'] ?>" class="danger-form"><?= CsrfHelper::field() ?>
                 <input type="hidden" name="action" value="delete">
                 <button class="button button-danger" type="submit" onclick="return confirm('Supprimer cette exception ?')">Supprimer</button>
             </form>
