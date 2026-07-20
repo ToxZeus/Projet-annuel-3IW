@@ -33,17 +33,17 @@ final class Database
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT NOT NULL UNIQUE,
-                full_name TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                plan TEXT NOT NULL DEFAULT \'free\',
+                email VARCHAR(320) NOT NULL UNIQUE CHECK (length(email) <= 320),
+                full_name VARCHAR(100) NOT NULL CHECK (length(full_name) <= 100),
+                password_hash VARCHAR(255) NOT NULL CHECK (length(password_hash) <= 255),
+                plan VARCHAR(20) NOT NULL DEFAULT \'free\' CHECK (length(plan) <= 20),
                 is_active BOOLEAN DEFAULT FALSE,
-                verification_token TEXT,
+                verification_token VARCHAR(255),
                 token_expiry TEXT,
-                reset_token TEXT,
+                reset_token VARCHAR(255),
                 reset_token_expiry TEXT,
-                stripe_customer_id TEXT,
-                stripe_subscription_id TEXT,
+                stripe_customer_id VARCHAR(255),
+                stripe_subscription_id VARCHAR(255),
                 created_at TEXT NOT NULL,
                 updated_at TEXT
             )
@@ -56,15 +56,15 @@ final class Database
         }
 
         if (!in_array('plan', $existingUserColumns, true)) {
-            $pdo->exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
+            $pdo->exec("ALTER TABLE users ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'free' CHECK (length(plan) <= 20)");
         }
 
         if (!in_array('stripe_customer_id', $existingUserColumns, true)) {
-            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT');
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_customer_id VARCHAR(255)');
         }
 
         if (!in_array('stripe_subscription_id', $existingUserColumns, true)) {
-            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT');
+            $pdo->exec('ALTER TABLE users ADD COLUMN stripe_subscription_id VARCHAR(255)');
         }
         if (!in_array('is_admin', $existingUserColumns, true)) {
             $pdo->exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0");
@@ -149,13 +149,6 @@ final class Database
             )
         ');
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_auth_attempts_identifier ON auth_attempts(identifier)');
-
-        $pdo->exec('
-            CREATE TABLE IF NOT EXISTS app_meta (
-                meta_key TEXT PRIMARY KEY,
-                meta_value TEXT
-            )
-        ');
     }
 
     public function query(string $sql, array $params = []): PDOStatement
