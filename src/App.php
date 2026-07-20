@@ -1049,6 +1049,11 @@ final class App
         }
 
         if ($action === 'set-plan') {
+            if ($targetEmail === $this->currentUser()['email']) {
+                $_SESSION['flash_error'] = 'Vous ne pouvez pas modifier votre propre plan.';
+                header('Location: /?page=admin');
+                exit;
+            }
             $plan = in_array($_POST['plan'] ?? '', ['free', 'paid'], true) ? $_POST['plan'] : 'free';
             $this->userService->updatePlan($targetEmail, $plan);
             $_SESSION['flash_success'] = 'Plan mis à jour.';
