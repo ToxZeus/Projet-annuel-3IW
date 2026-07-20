@@ -23,6 +23,9 @@ $displayName = $isAuthenticated ? ($user['full_name'] ?? $user['email'] ?? 'Util
                 <?php if (($user['plan'] ?? 'free') !== 'paid') : ?>
                     <a href="/?page=subscriptions">Devenir premium</a>
                 <?php endif; ?>
+                <?php if ($user['is_admin'] ?? false) : ?>
+                    <a href="/?page=admin">Administration</a>
+                <?php endif; ?>
                 <span class="topbar-user">
                     Connecté : <?= htmlspecialchars((string) $displayName, ENT_QUOTES, 'UTF-8') ?>
                     <?php if (($user['plan'] ?? 'free') === 'paid') : ?>
