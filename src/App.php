@@ -543,6 +543,9 @@ final class App
             $share = $token !== '' ? $this->shareService->findByToken($token) : null;
             $data['token'] = $token;
             $data['share'] = $share;
+            $data['share_expired'] = $share !== null
+                && $share['status'] === 'pending'
+                && $this->shareService->isExpired($share);
             if ($share !== null) {
                 $data['share_account'] = $this->accountService->findById((int) $share['account_id']);
             }
@@ -1227,6 +1230,23 @@ final class App
         header('Location: /?page=account&id=' . $accountId);
         exit;
     }
+    private function resolveAccountAccess(int $accountId): ?array
+    {
+        $account = $this->accountService->findById($accountId);
+        if ($account === null) {
+            return null;
+        }
+
+        $isOwner = $account['user_email'] === $this->currentUser()['email'];
+        $hasReadOnlyAccess = !$isOwner
+            && $this->shareService->hasAcceptedAccess($account['id'], $this->currentUser()['email']);
+
+        if (!$isOwner && !$hasReadOnlyAccess) {
+            return null;
+        }
+
+        return ['account' => $account, 'is_owner' => $isOwner];
+    }
 
     private function handleAccountShareRevoke(int $accountId): void
     {
@@ -1248,7 +1268,7 @@ final class App
         exit;
     }
 
-    private function handleShareAccept(): void
+        private function handleShareAccept(): void
     {
         if (!$this->isAuthenticated()) {
             header('Location: /?page=login');
@@ -1260,6 +1280,12 @@ final class App
 
         if ($share === null) {
             $_SESSION['flash_error'] = 'Invitation introuvable ou déjà traitée.';
+            header('Location: /?page=dashboard');
+            exit;
+        }
+
+        if ($share['status'] === 'pending' && $this->shareService->isExpired($share)) {
+            $_SESSION['flash_error'] = 'Ce lien d\'invitation a expiré. Demandez au propriétaire du compte de vous en renvoyer un.';
             header('Location: /?page=dashboard');
             exit;
         }

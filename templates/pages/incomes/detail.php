@@ -15,17 +15,14 @@ $frequencyMonths = $old['frequencyMonths'] ?? ($income['frequency_months'] ?? ''
         <div>
             <p class="eyebrow">Revenu</p>
             <h1><?= htmlspecialchars($income['short_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></h1>
+            <div class="header-badge-wrap">
+                <?php require BASE_PATH . '/templates/partials/readonly-badge.php'; ?>
+            </div>
         </div>
         <a class="button button-secondary" href="/?page=account&id=<?= $account['id'] ?>">← Retour</a>
     </div>
 
-    <?php if (!empty($success)) : ?>
-        <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
-
-    <?php if (!empty($error)) : ?>
-        <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
+    <?php require BASE_PATH . '/templates/partials/flash.php'; ?>
 
     <article class="detail-card">
         <?php if (!empty($is_owner)) : ?>

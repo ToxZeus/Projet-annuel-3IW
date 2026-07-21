@@ -13,6 +13,9 @@
     <?php if (empty($share)) : ?>
         <p class="empty-state">Ce lien d'invitation est invalide ou a expiré.</p>
         <a class="button" href="/?page=dashboard">Retour au tableau de bord</a>
+    <?php elseif (!empty($share_expired)) : ?>
+        <p class="notice notice-error">Ce lien d'invitation a expiré (validité : 24h). Demandez à <?= htmlspecialchars($share['owner_email'], ENT_QUOTES, 'UTF-8') ?> de vous en renvoyer un.</p>
+        <a class="button" href="/?page=dashboard">Retour au tableau de bord</a>
     <?php elseif ($share['status'] === 'accepted') : ?>
         <p class="notice">Cette invitation a déjà été acceptée.</p>
         <a class="button" href="/?page=account&id=<?= $share['account_id'] ?>">Voir le compte</a>

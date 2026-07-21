@@ -7,13 +7,7 @@
         <a class="button" href="/?page=account-create">+ Nouveau compte</a>
     </div>
 
-    <?php if (!empty($success)) : ?>
-        <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
-
-    <?php if (!empty($error)) : ?>
-        <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
+    <?php require BASE_PATH . '/templates/partials/flash.php'; ?>
 
     <?php if (empty($accounts)) : ?>
         <p class="empty-state">Aucun compte créé. <a href="/?page=account-create">Créer votre premier compte.</a></p>
@@ -68,7 +62,16 @@
                     <div>
                         <h3><?= htmlspecialchars($account['short_name'], ENT_QUOTES, 'UTF-8') ?></h3>
                         <p><?= htmlspecialchars($account['description'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <p class="eyebrow">Partagé par <?= htmlspecialchars($account['owner_email'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="eyebrow">
+                            Partagé par <?= htmlspecialchars($account['owner_email'], ENT_QUOTES, 'UTF-8') ?>
+                        </p>
+                        <span class="badge badge-readonly">
+                            <svg class="badge-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                                <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                                <path d="M7 10V7a5 5 0 0 1 10 0v3"></path>
+                            </svg>
+                            Lecture seule
+                        </span>
                     </div>
                 </div>
 

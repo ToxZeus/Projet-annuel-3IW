@@ -140,6 +140,20 @@ final class Database
                 FOREIGN KEY (account_id) REFERENCES accounts(id)
             )
         ');
+    $shareColumns = $pdo->query('PRAGMA table_info(account_shares)')->fetchAll(PDO::FETCH_ASSOC);
+    $existingShareColumns = [];
+    foreach ($shareColumns as $column) {
+        $existingShareColumns[] = $column['name'] ?? '';
+    }
+
+    if (!in_array('expires_at', $existingShareColumns, true)) {
+        $pdo->exec('ALTER TABLE account_shares ADD COLUMN expires_at TEXT');
+    }
+         $pdo->exec("
+        UPDATE account_shares
+        SET expires_at = datetime(created_at, '+24 hours')
+        WHERE status = 'pending' AND expires_at IS NULL
+        ");
 
         $pdo->exec('
             CREATE TABLE IF NOT EXISTS auth_attempts (
