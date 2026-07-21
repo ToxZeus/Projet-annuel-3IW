@@ -3,20 +3,19 @@
         <div>
             <p class="eyebrow">Compte</p>
             <h1><?= htmlspecialchars($account['short_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></h1>
+            <div class="header-badge-wrap">
+                <?php require BASE_PATH . '/templates/partials/readonly-badge.php'; ?>
+            </div>
         </div>
         <a class="button button-secondary" href="/?page=accounts">← Retour aux comptes</a>
     </div>
 
-    <?php if (!empty($success)) : ?>
-        <p class="notice notice-success"><?= htmlspecialchars($success, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
-
-    <?php if (!empty($error)) : ?>
-        <p class="notice notice-error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
-    <?php endif; ?>
+    <?php require BASE_PATH . '/templates/partials/flash.php'; ?>
 
     <?php if (empty($is_owner)) : ?>
-        <p class="notice">Ce compte vous a été partagé. Vous y avez accès en lecture seule.</p>
+        <p class="notice notice-info">
+            Ce compte vous a été partagé<?= !empty($account['user_email']) ? ' par ' . htmlspecialchars($account['user_email'], ENT_QUOTES, 'UTF-8') : '' ?>. Vous pouvez consulter les données mais pas les modifier.
+        </p>
     <?php endif; ?>
 
     <div class="stats-grid" style="margin-bottom: 24px;">
@@ -106,14 +105,26 @@
                             <tr>
                                 <th>Email</th>
                                 <th>Statut</th>
+                                <th>Depuis</th>
                                 <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($shares as $share) : ?>
+                                <?php
+                                    $isAccepted = $share['status'] === 'accepted';
+                                    $sinceDate = $isAccepted ? ($share['accepted_at'] ?? $share['created_at']) : $share['created_at'];
+                                ?>
                                 <tr>
                                     <td><?= htmlspecialchars($share['invited_email'], ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td><?= $share['status'] === 'accepted' ? 'Accepté' : 'En attente' ?></td>
+                                    <td>
+                                        <?php if ($isAccepted) : ?>
+                                            <span class="badge badge-success">Accepté</span>
+                                        <?php else : ?>
+                                            <span class="badge badge-pending">En attente</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= htmlspecialchars((string) $sinceDate, ENT_QUOTES, 'UTF-8') ?></td>
                                     <td>
                                         <form method="post" action="/?page=account&id=<?= $account['id'] ?>" onsubmit="return confirm('Révoquer ce partage ?')"><?= CsrfHelper::field() ?>
                                             <input type="hidden" name="action" value="share-revoke">

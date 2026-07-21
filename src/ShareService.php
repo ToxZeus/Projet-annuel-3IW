@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class ShareService
 {
+    private const INVITE_LIFETIME_HOURS = 24;
+
     public function __construct(private Database $db)
     {
     }
@@ -10,11 +12,12 @@ final class ShareService
     public function invite(int $accountId, string $ownerEmail, string $invitedEmail): string
     {
         $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+' . self::INVITE_LIFETIME_HOURS . ' hours'));
 
         $this->db->exec(
-            'INSERT INTO account_shares (account_id, owner_email, invited_email, token, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)',
-            [$accountId, $ownerEmail, $invitedEmail, $token, 'pending', date('Y-m-d H:i:s')]
+            'INSERT INTO account_shares (account_id, owner_email, invited_email, token, status, created_at, expires_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$accountId, $ownerEmail, $invitedEmail, $token, 'pending', date('Y-m-d H:i:s'), $expiresAt]
         );
 
         return $token;
@@ -23,8 +26,9 @@ final class ShareService
     public function findPendingInvite(int $accountId, string $invitedEmail): ?array
     {
         return $this->db->fetch(
-            "SELECT * FROM account_shares WHERE account_id = ? AND invited_email = ? AND status = 'pending'",
-            [$accountId, $invitedEmail]
+            "SELECT * FROM account_shares
+             WHERE account_id = ? AND invited_email = ? AND status = 'pending' AND expires_at > ?",
+            [$accountId, $invitedEmail, date('Y-m-d H:i:s')]
         );
     }
 
@@ -33,10 +37,19 @@ final class ShareService
         return $this->db->fetch('SELECT * FROM account_shares WHERE token = ?', [$token]);
     }
 
+    public function isExpired(array $share): bool
+    {
+        return !empty($share['expires_at']) && $share['expires_at'] < date('Y-m-d H:i:s');
+    }
+
     public function accept(string $token, string $userEmail): bool
     {
         $share = $this->findByToken($token);
         if ($share === null || $share['status'] !== 'pending') {
+            return false;
+        }
+
+        if ($this->isExpired($share)) {
             return false;
         }
 
