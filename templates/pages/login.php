@@ -26,5 +26,4 @@
 
     <p class="hint"><a href="/?page=forgot-password" class="link">Mot de passe oublié ?</a></p>
     <p class="hint">Pas encore inscrit ? <a href="/?page=signup" class="link">Crée un compte</a></p>
-    <p class="hint" style="font-size: 0.85rem; color: var(--muted);">Compte de démo : demo@budgie.local / BudgieDemo2026!</p>
 </section>
